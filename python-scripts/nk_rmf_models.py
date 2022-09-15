@@ -301,14 +301,32 @@ def cov(infile):
         '''
         df = pd.read_csv(input_file)
         reference = df.groupby(['target']).get_group(ref)
-        fit_list = reference.query('delta_bind > 0 or delta_bind <0').groupby('position').mean().reset_index().delta_bind.tolist()
+        fit_list = reference.query('delta_bind > 0 or delta_bind <0').groupby('position').mean().reset_index().bind.tolist()
         return fit_list
-        
+    
+    def get_wildtype(input_file):
+        '''
+        Gets the average fitness of all wildtypes
+        '''
+        df = pd.read_csv(input_file)
+        reference = df.groupby(['target']).get_group(ref).reset_index()
+        wild_list = []
+        fit_list = []
+        for index, row in reference.iterrows():
+            if row['wildtype'] == row['mutant']:
+                wild_list.append(row['bind'])
+        wild_fit = sum(wild_list) / len(wild_list)
+        fit_list.append(wild_fit)
+        return fit_list
+
     def get_fitness(input_file):
         '''
         Converts the fitness list into an array
         '''
-        fit_list = get_fit(input_file)
+        fit_list = get_wildtype(input_file)
+        mutant_list = get_fit(input_file)
+        for item in mutant_list:
+            fit_list.append(item)
         fit_array = np.array(fit_list)
         return fit_array
 
@@ -317,20 +335,27 @@ def cov(infile):
     N = 15  # number of variable site
     
     # calculate fitness for all genotypes
-    fit_list = get_fit(infile)
+    fit_list = get_wildtype(infile)
+    mutant_list = get_fit(infile)
+    for item in mutant_list:
+        fit_list.append(item)
 
     # Generate COV_list
     def COV_list():
         haps = []
+        p = 0
+        q = 201
+        single_hap = f'{p:0{q}b}'
+        haps.append(single_hap)
         i = 1
-        for item in fit_list:
+        for item in mutant_list:
             pasti = i
             j = 1
-            k = fit_list.index(item) + 1
+            k = mutant_list.index(item) + 1
             a = f'{j:0{k}b}'
             single_hap = [a]
             norm = '0'
-            while (i < len(fit_list)):
+            while (i < len(mutant_list)):
                 single_hap.append(norm)
                 i +=1
             single_hap = "".join(single_hap)
@@ -347,13 +372,18 @@ def cov(infile):
     # Generate COV_landscape_list
     def COV_landscape_list():
         haps = []
+        single_hap = []
+        norm = 0
+        one = 1
+        h = 202
+        for num in range(h):
+            single_hap.append(norm)
+        haps.append(single_hap)
         i = 1
-        for item in fit_list:
+        for item in mutant_list:
             pasti = i
             a = 1
-            j = fit_list.index(item) + 1
-            norm = 0
-            one = 1
+            j = mutant_list.index(item) + 1
             single_hap = []
             while a < j:
                 single_hap.append(norm)
@@ -365,13 +395,11 @@ def cov(infile):
             haps.append(single_hap)
             i = pasti
             i += 1
-        #print(haps)
 
         fitness = get_fitness(infile)
 
         COV_landscape = {i:[] for i in range(1,2)}
         COV_item_list = []
-        #print(COV_landscape)
         for i in range(1,2):
             for item in haps:
                 COV_item = haps[haps.index(item)]
