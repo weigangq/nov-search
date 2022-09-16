@@ -1,0 +1,25 @@
+library(tidyverse)
+library(plotly)
+library(ggplot2)
+library(colorspace)
+
+setwd("/Users/eamenho/Qiu_Lab/sars_epistatis/")
+
+final_variant_scores <- read.csv("final_variant_scores.csv")
+RBD_sites <- read.csv("RBD_sites.csv")
+
+# Expression and Binding scores per variant background -- for the heatmap plots
+# rename columns and select used columns
+scores_df <- final_variant_scores %>% rename(site = position, RBD_expression = delta_expr, ACE2_binding = delta_bind) %>% select(target, wildtype, site, mutant, RBD_expression, mutation, ACE2_binding, n_bc_expr)
+
+# Annotations for RBD sites - we really only care about ACE2 contact sites
+site_level_annotations_df <- RBD_sites %>% rename(ACE2_contact = SARS2_ACE2_contact) %>% select(site, ACE2_contact)
+
+# Add the ACE2 contacts
+scores_df <- left_join(scores_df, site_level_annotations_df, by = c("site"))
+
+p <- ggplot(scores_df, aes(x = site, y = mutant, fill = ACE2_binding)) + geom_tile() + scale_y_discrete(limits = rev(c('R', 'K', 'H', 'D', 'E', 'Q', 'N', 'S', 'T', 'Y', 'W', 'F', 'A', 'I', 'L', 'M', 'V', 'G', 'P', 'C'))) + scale_fill_continuous_divergingx(palette = 'RdBu') +facet_wrap(~target, ncol = 1)
+
+# Interactive heatmap using plotly
+fig <- ggplotly(p)
+fig
