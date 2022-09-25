@@ -1,0 +1,5 @@
+tag	gen	closest_id	closest_hap	closest_fit	elite_id	elite_hap	diff_closest	diff_fittest	landscape	algorithm
+run-nk4-com-6	0	H504	0.5296689798451485	H504	0	0.4	nk	3
+run-nk4-com-6	1	H076	0.7549649765863249	E005	0	0.5	nk	3
+run-nk4-com-6	2	H073	0.7569471115595946	E007	0	0.4	nk	3
+run-nk4-com-6	3	H000	1.0	E004	0	0.5	nk	3
