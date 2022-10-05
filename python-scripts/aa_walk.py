@@ -81,7 +81,7 @@ for v in recs:
 ############ get aa sets for each position
 aa_states = {}
 for pos in range(pep_len):
-    aa_states[pos] = np.unique([ x[pos] for x in df['Variants'] ])
+    aa_states[pos] = list(np.unique([ x[pos] for x in df['Variants'] ]))
 
 #print(pep_len)
 #print(aa_states[0][0:5])

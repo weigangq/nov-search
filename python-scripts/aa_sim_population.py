@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import numpy as np
 import pandas as pd
+import sys
 
 # NOTE: DEPENDS ON COMPLETE LANDSCAPE FILE
 
@@ -49,6 +50,10 @@ def aa_fitness(aa_string: np.ndarray, dict_fit) -> float:
 #    return fitness_values.at[arr_to_str(aa_string), 'Fitness']
     pep = ''.join([c for c in aa_string])
     #print(pep)
+    if pep not in dict_fit:
+        print("haplotype not in landscape file (need a combinarially complete landscape):", pep)
+        sys.exit()
+        
     return dict_fit[pep]
 
 
@@ -122,6 +127,7 @@ class Population:
         self.generation = 0
         self.pep_len = pep_len
         self.land = land
+        self.aa_sets = aa_sets
 
         # Numpy rng
         self.rng = np.random.default_rng(seed=rng_seed)
@@ -171,7 +177,8 @@ class Population:
                 mut_indices = self.rng.choice(self.pep_len, num_mut, replace=False)
                 # Mutate amino acids at the chosen indices.
                 for i in mut_indices:
-                    possible_aa = amino_acids.copy()
+                    #possible_aa = amino_acids.copy()
+                    possible_aa = self.aa_sets[i].copy()
                     possible_aa.remove(self.population[n, i])
                     self.population[n, i] = self.rng.choice(possible_aa)
         return
