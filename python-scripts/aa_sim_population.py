@@ -1,15 +1,8 @@
+#!/usr/bin/env python
 import numpy as np
 import pandas as pd
 
-# Store all variants and fitness values in a data frame.
-fitness_file = "../data/gb1_fitness.tsv"
-fitness_values = pd.read_csv(fitness_file, sep="\t", index_col=['Variants'])
-
 # NOTE: DEPENDS ON COMPLETE LANDSCAPE FILE
-
-# Find the variant with the highest fitness.
-fitness_peak = fitness_values[fitness_values['Fitness'] == fitness_values['Fitness'].max()]
-fitness_peak = fitness_peak.reset_index()
 
 # List of all possible letters representing amino acids.
 amino_acids = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
@@ -28,6 +21,7 @@ hydropathy = {'A': 1.8, 'C': 2.5, 'D': -3.5, 'E': -3.5, 'F': 2.8, 'G': -0.4, 'H'
 # Record of sequence behavior
 sequence_behavior = {}
 
+#print(hydropathy)
 
 def arr_to_str(nparray: np.ndarray) -> str:
     """
@@ -41,7 +35,7 @@ def arr_to_str(nparray: np.ndarray) -> str:
     return ''.join(nparray)
 
 
-def aa_fitness(aa_string: np.ndarray) -> float:
+def aa_fitness(aa_string: np.ndarray, dict_fit) -> float:
     """
     Get the fitness of the amino acid string from the fitness_values data frame.
 
@@ -52,10 +46,13 @@ def aa_fitness(aa_string: np.ndarray) -> float:
     Returns:
         float
     """
-    return fitness_values.at[arr_to_str(aa_string), 'Fitness']
+#    return fitness_values.at[arr_to_str(aa_string), 'Fitness']
+    pep = ''.join([c for c in aa_string])
+    #print(pep)
+    return dict_fit[pep]
 
 
-def population_fitness(pop: np.ndarray) -> list:
+def population_fitness(pop: np.ndarray, land) -> list:
     """
     Returns a list containing only the fitness values of the sequences in the population.
     Fitness values are obtained from the fitness_values data frame.
@@ -67,10 +64,10 @@ def population_fitness(pop: np.ndarray) -> list:
     Returns:
         list
     """
-    return [aa_fitness(pop[i]) for i in range(pop.shape[0])]
+    return [aa_fitness(pop[i], land) for i in range(pop.shape[0])]
 
 
-def get_elites(pop: np.ndarray, population_metrics: list) -> list:
+def get_elites(pop: np.ndarray, population_metrics: list, land) -> list:
     """
     Used by a Population object to find the top 10 sequences of the population based on fitness/novelty/combo without
     having to sort the entire list of values.
@@ -96,12 +93,12 @@ def get_elites(pop: np.ndarray, population_metrics: list) -> list:
             elite.append([index, population_metrics[index]])
             elite_min = min(elite, key=lambda x: x[1])
 
-    elite_fitness = [[e[0], arr_to_str(pop[e[0]]), aa_fitness(pop[e[0]])] for e in elite]
+    elite_fitness = [[e[0], arr_to_str(pop[e[0]]), aa_fitness(pop[e[0]], land)] for e in elite]
     return elite_fitness
 
 
 class Population:
-    def __init__(self, pop_size: int = 100, rng_seed: object = None) -> None:
+    def __init__(self, pop_size, land, rng_seed, aa_sets, pep_len):
         """
         Creates Population object. Contains amino acid sequences of length 4, along with other information about the
         population.
@@ -116,24 +113,32 @@ class Population:
                 To generate reproducible results, specify a seed to initialize numpy.random.default_rng().
                 By default, the rng results will be unpredictable.
         """
+        #print(self.pop_size)
         if pop_size < 10:
             raise ValueError('The population size should be at least 10.')
         self.pop_size = (pop_size // 10) * 10
 
         # Generation counter that counts the number of times the population has undergone mutations.
         self.generation = 0
+        self.pep_len = pep_len
+        self.land = land
 
         # Numpy rng
         self.rng = np.random.default_rng(seed=rng_seed)
 
-        # Initialize a population of random amino acid sequences with length 4.
-        # Each amino acid has equal probability of being picked.
-        self.population = np.broadcast_to(self.rng.choice(amino_acids, 4), (self.pop_size, 4)).copy()
+        # Initialize a population of a single random amino acid sequence
+        # Each amino acid has equal probability of being picked for a position
+        pep_start = []
+        for pos in aa_sets:
+            pep_start.append(self.rng.choice(aa_sets[pos]))
+            
+        self.population = np.broadcast_to(pep_start, (pop_size, pep_len)).copy()
+        #print(self.population)
 
         # Elite list contains each generation's top 10 sequences based on fitness, novelty, or a combination.
         # Will be updated during each selection function.
         # Format: list of 10 * [Sequence's index in population, Sequence string, Fitness]
-        self.elite = get_elites(self.population, population_fitness(self.population))
+        self.elite = get_elites(self.population, population_fitness(self.population, land), land)
 
         # The highest scoring sequence of the generation based on fitness, novelty, or a combination.
         # Will be updated during each selection function.
@@ -141,7 +146,7 @@ class Population:
         self.elite1 = max(self.elite, key=lambda x: x[2])
 
         # Archive contains sequences that were novel. Used during novelty and combo search.
-        self.archive = np.empty((0, 4), dtype=str)
+        self.archive = np.empty((0, pep_len), dtype=str)
 
     def mutate(self, mut_rate: float = 1) -> None:
         """
@@ -161,9 +166,9 @@ class Population:
             num_mut = self.rng.poisson(mut_rate)
             if num_mut > 0:
                 # Ensure that number of mutations is 4 or less because sequence length is 4.
-                num_mut = min(num_mut, 4)
+                num_mut = min(num_mut, self.pep_len)
                 # Select random indices to mutate.
-                mut_indices = self.rng.choice(4, num_mut, replace=False)
+                mut_indices = self.rng.choice(self.pep_len, num_mut, replace=False)
                 # Mutate amino acids at the chosen indices.
                 for i in mut_indices:
                     possible_aa = amino_acids.copy()
@@ -181,19 +186,19 @@ class Population:
         elite_nparray = [self.population[e[0]] for e in self.elite]
 
         # Clear population array.
-        self.population = np.empty((0, 4), dtype=str)
+        self.population = np.empty((0, self.pep_len), dtype=str)
 
         # Broadcast elites to 10% of pop size, then append.
         for seq in elite_nparray:
-            self.population = np.append(self.population, np.broadcast_to(seq, (self.pop_size // 10, 4)), axis=0)
+            self.population = np.append(self.population, np.broadcast_to(seq, (self.pop_size // 10, self.pep_len)), axis=0)
         return
 
     def objective_selection(self) -> None:
         """
         Selects the top 10 sequences by fitness value, then replaces the population with the elites (fittest).
         """
-        pop_fitness = population_fitness(self.population)
-        self.elite = get_elites(self.population, pop_fitness)
+        pop_fitness = population_fitness(self.population, self.land)
+        self.elite = get_elites(self.population, pop_fitness, self.land)
         self.elite1 = max(self.elite, key=lambda x: x[2])
         self.replace_pop()
         return
@@ -333,7 +338,7 @@ class Population:
         """
         pop_novelty = self.population_novelty(nearest_neighbors=nearest_neighbors, archive_method=archive_method,
                                               prob=prob)
-        self.elite = get_elites(self.population, pop_novelty)
+        self.elite = get_elites(self.population, pop_novelty, self.land)
         self.elite1 = max(self.elite, key=lambda x: x[2])
         self.replace_pop()
         return
@@ -357,7 +362,7 @@ class Population:
         if weight < 0 or weight > 1:
             raise ValueError('The weight must be a number between 0 and 1.')
         pop_combo = []
-        objective = population_fitness(self.population)
+        objective = population_fitness(self.population, self.land)
         novelty = self.population_novelty(nearest_neighbors=nearest_neighbors, archive_method=archive_method, prob=prob)
 
         # Normalize metrics, then calculate the score.
@@ -377,7 +382,7 @@ class Population:
         """
         pop_combo = self.population_combo(weight=weight, nearest_neighbors=nearest_neighbors,
                                           archive_method=archive_method, prob=prob)
-        self.elite = get_elites(self.population, pop_combo)
+        self.elite = get_elites(self.population, pop_combo, self.land)
         self.elite1 = max(self.elite, key=lambda x: x[2])
         self.replace_pop()
         return

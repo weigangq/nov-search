@@ -1,15 +1,23 @@
-from aa_search import *
+#!/usr/bin/env python
+from aa_sim_population import *
 import argparse
+import logging
+import sys
+import numpy as np
+import pandas as pd
 
+#print(dir(aa_sim_population))
 parser = argparse.ArgumentParser(
-    description='Simulate the evolution of Streptococcal bacteria protein G domain B1 using the fitness landscape from '
-                'https://doi.org/10.7554/eLife.16965. Author: Winston Koh (Qiu Lab)'
+    description='Simulated adaptive walks on a fitness landscape of peptides. Haplotypes should be combinatorially complete, although not necessarily for all 20 AAs. For example, 1st site could have 2 possible AAs, 2nd site could have 5 possible AAs, then the landscape file should contain ALL 2 x 5 = 10 haplotypes. Error otherwise. Authors: Winston Koh (Qiu Lab)'
 )
 
 parser.add_argument('-t', '--tag', default='test',
                     help='Prefix for output files. Default: "test"')
 
-parser.add_argument('-r', '--rng_seed', default=None,
+parser.add_argument('-land', '--landscape_file', required = True,
+                    help='landscape file, containing tab-sep 2 columns, named as "Variants" and "Fitness". Required')
+
+parser.add_argument('-s', '--rng_seed', default=None,
                     help='RNG seed to generate reproducible rng results. Default = None (i.e., unpredictable rng.')
 
 parser.add_argument('-pop', '--pop_size', type=int, default=100,
@@ -45,9 +53,48 @@ parser.add_argument('-w', '--weight', type=float, default=0.5,
 args = parser.parse_args()
 tagRun = args.tag
 
-fitness_peak_value = fitness_peak.at[0, 'Fitness']
-p = Population(pop_size=args.pop_size, rng_seed=args.rng_seed)
+logging.basicConfig(level=logging.DEBUG)
 
+######## Read landscape file
+if args.landscape_file is None:
+    logging.info("Need a landscape file")
+    sys.exit()
+
+df = pd.read_csv(args.landscape_file, sep="\t")
+
+# Find the variant with the highest fitness.
+fitness_peak = df[df['Fitness'] == df['Fitness'].max()]
+fitness_peak = fitness_peak.reset_index()
+#fitness_peak_value = fitness_peak.at[0, 'Fitness']
+fitness_peak_value = fitness_peak['Fitness'][0]
+pep_len = len(fitness_peak['Variants'][0])
+
+logging.info("fitness peak\n%s", fitness_peak)
+
+recs = df.to_dict('records')
+dict_fit = {}
+for v in recs:
+    dict_fit[v['Variants']] = v['Fitness'] 
+#print(fitness_peak_value, pep_len, dict_fit)
+#sys.exit()
+
+############ get aa sets for each position
+aa_states = {}
+for pos in range(pep_len):
+    aa_states[pos] = np.unique([ x[pos] for x in df['Variants'] ])
+
+#print(pep_len)
+#print(aa_states[0][0:5])
+#sys.exit()
+
+p = Population(pop_size=args.pop_size, 
+    land = dict_fit,
+    rng_seed=args.rng_seed, 
+    pep_len = pep_len, 
+    aa_sets = aa_states)
+
+#print(p.elite)
+#sys.exit()
 # Fitness file (elite.tsv): each generation's 10 highest fitness strings and fitness.
 #elite = open(f'results/{tagRun}-elite.tsv', 'w')
 #elite.write('tag\tgen\telite_hap\telite_fitness\talgorithm\n')
@@ -75,4 +122,5 @@ for n in range(args.generation):
         p.combo_selection(weight=args.weight, nearest_neighbors=args.nearest_neighbors,
                           archive_method=args.archive_method, prob=args.prob_arch)
 
-#elite.close()
+logging.info("Done")
+sys.exit()

@@ -4,6 +4,7 @@ Referenced paper:
 
 Original file is located at
     https://github.com/song88180/fitness-landscape-error
+    https://github.com/Mac13kW/NK_model/blob/master/NK%20landscapes%20-%20a%20hands-on%20exercise%202019.pdf
 """
 from asyncore import ExitNow
 import numpy as np
