@@ -325,13 +325,13 @@ elapsed_time = time() - start
 
 num_hap = 2 ** N
 total_fits = normalize([Landscape_data[0, n, (2*N)] for n in range(num_hap)]) 
-
+print("tag\tid\thaplotype\tfitness\tfit_norm\tlocal_peak\tglobal_peak\tN\tK")
 id = 0
 for n in range(num_hap):
     hap = ''.join([ str(int(x)) for x in Landscape_data[0,n,:N]])
     fits = Landscape_data[0,n,N:(2*N+1)]
-    local_peak = Landscape_data[0, n, 2*N+1]
-    global_peak = Landscape_data[0, n, 2*N+2]
+    local_peak = int(Landscape_data[0, n, 2*N+1])
+    global_peak = int(Landscape_data[0, n, 2*N+2])
     print(f"{args.tag}\tH{id:04d}\t{hap}\t{fits[-1]:6f}\t{total_fits[n]:6f}\t{local_peak}\t{global_peak}\t{N}\t{K}")
     id += 1
 

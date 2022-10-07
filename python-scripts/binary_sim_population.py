@@ -1,17 +1,15 @@
 import numpy as np
 from numpy.random import default_rng
 
-
 def arr_to_str(nparray):
     # Convert 1D numpy array to a single string.
     return ''.join(str(nparray)[1:-1].split())
-
 
 def str_to_arr(string):
     # Convert a binary string into numpy array.
     return np.asarray(list(string), dtype=np.integer)
 
-
+'''
 def dist_to_closest(nparray, land_pop):
     # Get the closest point in land_pop from nparray
     dist_to_land = []
@@ -80,7 +78,7 @@ def add_fitness(haps, model):
     fitness_list = sorted(fitness_list, key=lambda x: x['fit'], reverse=True)
     # print(fitness_list)
     return fitness_list  # List of [fitness, array]
-
+'''
 
 class Population:
     def __init__(self, landscape, pop_size):
@@ -91,30 +89,32 @@ class Population:
         self.landscape = landscape
 
         # haps_land = [ landscape[id]['hap'] for id in landscape ] # list comprehension (foreach construct in Perl)
-        top = landscape['H000']  # most fit ind in landscape
+        # top = landscape['H000']  # most fit ind in landscape
         # print(haps_land)
-        start_ids = [n for n in list(landscape.keys()) if n != 'H000']  # don't allow to start on the peak
+        start_ids = [n for n in list(landscape.keys())] # bit strings 
         pick = np.random.choice(start_ids, size=1)  # returns a list of ids
-        self.genome_length = len(landscape[pick[0]]['hap'])
-        self.highest_fitness = np.asarray(list(top['hap']), dtype=np.integer)
-        self.land_model = top['model']
-        pick_hap = np.asarray(list(landscape[pick[0]]['hap']), dtype=np.integer)
-        pick_hap_str = landscape[pick[0]]['hap']
+        self.genome_length = len(pick[0])
+        #self.highest_fitness = np.asarray(list(top['hap']), dtype=np.integer)
+        #self.land_model = top['model']
+        pick_hap = np.asarray(list(pick[0]), dtype=np.integer)
+        pick_hap_str = pick[0]
         pick_fit = landscape[pick[0]]['fit']
         self.start_hap = pick[0]
+        self.K = landscape[pick[0]]['K']
 
         self.archive = np.empty((0, self.genome_length), dtype=int)  # Contains sequences that were novel.
 
         # starting point on the landscape
         self.elite1 = {
             'gen': 0,
-            'close_id': pick[0],  # closest haplotype on the landscape by hamming distance
-            'close_hap': pick_hap_str,
-            'close_fit': pick_fit,
-            'elite_id': pick[0],  # elite
-            'elite_hap': pick_hap,
-            'diff_closest': 0,
-            'diff_fittest': hap_dist_to_fittest(self.highest_fitness, pick_hap, self.genome_length)
+#            'close_id': pick[0],  # closest haplotype on the landscape by hamming distance
+#            'close_hap': pick_hap_str,
+#            'close_fit': pick_fit,
+#            'elite_id': pick[0],  # elite
+            'hap': pick[0],
+            'fit': pick_fit
+#            'diff_closest': 0,
+#            'diff_fittest': hap_dist_to_fittest(self.highest_fitness, pick_hap, self.genome_length)
         }
 
         # print(list(pick[0]))
@@ -145,16 +145,17 @@ class Population:
 
     def replace_pop(self):
         # Get the strings of the elite
-        elite10 = [n['elite_hap'] for n in self.elite]
+        elite10 = [n['hap'] for n in self.elite]
         # Create the new pop by broadcasting each individual to be 1/10 of the population size, then concatenate.
         # self.pop = np.broadcast_to(elite10, (self.pop_size // 10, self.genome_length))
         self.pop = np.empty((0, self.genome_length), dtype=int)  # !!! (do not use row dimension!!!)
         for indiv in elite10:
-            self.pop = np.append(self.pop, np.broadcast_to(indiv, (self.pop_size // 10, self.genome_length)), axis=0)
+            self.pop = np.append(self.pop, np.broadcast_to(str_to_arr(indiv), (self.pop_size // 10, self.genome_length)), axis=0)
         return
 
     def get_fitness(self, pop):
         # Get fitness of the all individuals in the pop based on the landscape
+        '''
         close_pop = []
         id = 0
         for indiv in range(pop.shape[0]):
@@ -172,6 +173,18 @@ class Population:
             })
             id += 1
         return close_pop
+        '''
+        new_pop = []
+        for indiv in range(pop.shape[0]):
+            #print(pop[indiv])
+            hap_str = arr_to_str(pop[indiv])
+            #print(hap_str)
+            new_pop.append({
+                'gen': self.generation,
+                'hap': hap_str,
+                'fit': self.landscape[hap_str]['fit']
+            })
+        return new_pop
 
     def objective_selection(self):
         """
@@ -200,10 +213,11 @@ class Population:
         self.elite = []
         # Hill-climbing: select top 10 on the landscape (not necessarily close to the fittest in hamming distance
         # this makes the non-additive landscapes deceptive
-        close_pop = self.get_fitness(self.pop)
-
+        # close_pop = self.get_fitness(self.pop)
+        new_pop = self.get_fitness(self.pop)
+        #print(new_pop[0])
         # Get fitness based on distance to the closest fitness landscape point
-        self.elite = sorted(close_pop, key=lambda x: x['close_fit'], reverse=True)[:10]
+        self.elite = sorted(new_pop, key=lambda x: x['fit'], reverse=True)[:10]
         self.elite1 = self.elite[0]
         # print(len(self.elite1['close_hap']))
         # Replace the population with the 10 fittest individuals
@@ -292,7 +306,7 @@ class Population:
 
         # Get fitness based on distance to the closest fitness landscape point
         self.elite = close_pop
-        self.elite1 = sorted(close_pop, key=lambda x: x['close_fit'], reverse=True)[0]
+        self.elite1 = sorted(close_pop, key=lambda x: x['fit'], reverse=True)[0]
 
         # Replace the population with the 10 most novel individuals
         self.replace_pop()
@@ -306,14 +320,22 @@ class Population:
         """
         if weight > 1 or weight < 0:
             raise ValueError('The weight must be between 0 and 1.')
-        pop_fitness = self.get_fitness(self.pop)
+        pop_objective = self.get_fitness(self.pop)
+        fitness = [n['fit'] for n in pop_objective]
         pop_novelty = self.novelty_search(nearest_neighbors, method, prob)
+        novelty = [n[0] for n in pop_novelty]
+
+        # Normalize metrics, then calculate the score.
+        max_fitness, min_fitness = max(fitness), min(fitness)
+        max_novelty, min_novelty = max(novelty), min(novelty)
 
         score_list = []
         for n in range(self.pop_size):
-            fit = pop_fitness[n]['close_fit']
-            nov = pop_novelty[n][0]
-            score = (1 - weight) * fit + weight * nov
+            norm_fitness = (fitness[n] - min_fitness) / (max_fitness - min_fitness)
+            norm_novelty = (novelty[n] - min_novelty) / (max_novelty - min_novelty)
+            #fit = pop_fitness[n]['fit']
+            #nov = pop_novelty[n][0]
+            score = (1 - weight) * norm_fitness + weight * norm_novelty
             score_list.append([score, self.pop[n]])
 
         # Get the 10 individuals with the highest scores
@@ -322,7 +344,7 @@ class Population:
 
         # Get the fitness of the highest scoring
         self.elite = self.get_fitness(high_score)
-        self.elite1 = max(self.elite, key=lambda x: x['close_fit'])
+        self.elite1 = max(self.elite, key=lambda x: x['fit'])
 
         # Replace the population with the 10 highest scoring individuals
         self.replace_pop()

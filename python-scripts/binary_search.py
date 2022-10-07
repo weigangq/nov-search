@@ -3,6 +3,7 @@ import argparse
 import logging
 import sys
 import re
+import pandas as pd
 
 ######## Setup: arguments, parameters, and logging
 parser = argparse.ArgumentParser(
@@ -41,23 +42,26 @@ logging.info(f"Simulation parameters:\nLandscape file: {args.landscape_file}\n\t
 
 ######## Read landscape file
 if args.landscape_file is None:
-    logging.info("Need a landscape file generated from the script gen-fit-landscape.py")
+    logging.info("Need a landscape file generated from the script nk_landscape.py")
     sys.exit()
 
 landscape = {}
-with open(args.landscape_file, 'r') as fh:
-    lines = fh.readlines()
-    for line in lines:
-        data = line.split()
-        if re.match("^H\d+", data[0]): 
-            landscape[data[0]] = {
-                'hap': str(data[1]),
-                'fit': float(data[2]),
-                'model': data[3]
-            }
-            
-#print(landscape)
+
+df = pd.read_csv(args.landscape_file, sep="\t", dtype = {'haplotype': str})
+
+# Find the variant with the highest fitness.
+fitness_peak = df[df['global_peak'] == 1]
+#fitness_peak = fitness_peak.reset_index()
+#fitness_peak_value = fitness_peak.at[0, 'Fitness']
+#fitness_peak_value = fitness_peak['fit_norm'][0]
+#str_len = len(fitness_peak['haplotype'][0])
+
+logging.info("fitness peak\n%s", fitness_peak)
+
 #sys.exit()
+recs = df.to_dict('records')
+for v in recs:
+    landscape[v['haplotype']] = { 'fit': v['fit_norm'], 'K': v['K'] } 
 
 ############## initialize a population
 p = Population(
@@ -70,23 +74,23 @@ logging.info(f"starting haplotype on landscape: {p.start_hap}")
 #sys.exit()
 
 # Fitness file (elite.tsv): each generation's 10 highest fitness strings and fitness.
-elite = open(tagRun + '-elite.tsv', 'w')
-elite.write('tag\tgen\tclosest_id\tclosest_hap\tclosest_fit\telite_id\telite_hap\tdiff_closest\tdiff_fittest\tlandscape\talgorithm\n')
+#elite = open(tagRun + '-elite.tsv', 'w')
+#elite.write('tag\tgen\tclosest_id\tclosest_hap\tclosest_fit\telite_id\telite_hap\tdiff_closest\tdiff_fittest\tlandscape\talgorithm\n')
 #print(p.elite)
 #sys.exit()
 #print(p.pop[0])
 ############ search by evolution
 
-print(f"Tag\tGen\tcl_id\tcl_fit\te1_id\tdiff_cl\tdiff_fit\tmodel\talgo")
+print(f"Tag\tGen\ttop_elite\tfit\tN\tK\tsearch_algo")
 
 for n in range(args.generation):
     # Mutate 1 site #print(f"{tagRun}\t{p.generation}\t{p.elite1['close_id']}\t{p.elite1['close_hap']}\t{p.elite1['close_fit']}\t{p.elite1['elite_id']}\t{arr_to_str(p.elite1['elite_hap'])}\t{p.elite1['diff_closest']}\t{p.elite1['diff_fittest']}\t{p.land_model}\t{args.algorithm}")
-    print(f"{tagRun}\t{p.generation}\t{p.elite1['close_id']}\t{p.elite1['close_fit']}\t{p.elite1['elite_id']}\t{p.elite1['diff_closest']}\t{p.elite1['diff_fittest']}\t{p.land_model}\t{args.algorithm}")
+    print(f"{tagRun}\t{p.generation}\t{p.elite1['hap']}\t{p.elite1['fit']}\t{p.genome_length}\t{p.K}\t{args.algorithm}")
     
-    elite.write(f"{tagRun}\t{p.generation}\t{p.elite1['close_id']}\t{p.elite1['close_fit']}\t{p.elite1['elite_id']}\t{p.elite1['diff_closest']}\t{p.elite1['diff_fittest']}\t{p.land_model}\t{args.algorithm}\n")
+    #elite.write(f"{tagRun}\t{p.generation}\t{p.elite1['close_id']}\t{p.elite1['close_fit']}\t{p.elite1['elite_id']}\t{p.elite1['diff_closest']}\t{p.elite1['diff_fittest']}\t{p.land_model}\t{args.algorithm}\n")
 
-    # end when reaches the peak
-    if p.elite1['close_id'] == 'H000':
+    # end when reaches the global peak
+    if p.elite1['fit'] == 1:
         break
 
     p.mutate(args.mutation_rate)
@@ -101,7 +105,7 @@ for n in range(args.generation):
     if args.algorithm == '3':
         p.combo(args.weight, args.nearest_neighbors, args.archive_method, args.prob_arch)
     
-elite.close()
+#elite.close()
 #logging.info("Elite file written")
 logging.info("Done")
 sys.exit()
