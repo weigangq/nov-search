@@ -3,8 +3,6 @@ import numpy as np
 import pandas as pd
 import sys
 
-# NOTE: DEPENDS ON COMPLETE LANDSCAPE FILE
-
 # List of all possible letters representing amino acids.
 amino_acids = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
 
@@ -22,7 +20,6 @@ hydropathy = {'A': 1.8, 'C': 2.5, 'D': -3.5, 'E': -3.5, 'F': 2.8, 'G': -0.4, 'H'
 # Record of sequence behavior
 sequence_behavior = {}
 
-#print(hydropathy)
 
 def arr_to_str(nparray: np.ndarray) -> str:
     """
@@ -30,49 +27,60 @@ def arr_to_str(nparray: np.ndarray) -> str:
 
     Args:
         nparray: numpy.ndarray with ndim = 1 and dtype = str.
+
     Returns:
         str
     """
     return ''.join(nparray)
 
 
-def aa_fitness(aa_string: np.ndarray, dict_fit) -> float:
+def aa_fitness(aa_string: np.ndarray, land: pd.DataFrame) -> float:
     """
-    Get the fitness of the amino acid string from the fitness_values data frame.
+    Get the fitness of the amino acid string from the landscape data frame.
 
     Args:
-        aa_string: numpy.ndarray with ndim = 1, dtype = str, and len = 4.
-            Amino acid sequence of length 4 represented by a 1D numpy ndarray, where each element is the 1 letter symbol
-            of an amino acid.
+        land: pandas.DataFrame
+            Data frame of the fitness landscape. The landscape must contain all possible sequences and their
+            corresponding fitness value.
+
+        aa_string: numpy.ndarray with ndim = 1, dtype = str.
+            Amino acid sequence represented by a 1D numpy ndarray, where each element is the 1 letter symbol of an
+            amino acid.
+
     Returns:
         float
     """
-#    return fitness_values.at[arr_to_str(aa_string), 'Fitness']
-    pep = ''.join([c for c in aa_string])
-    #print(pep)
-    if pep not in dict_fit:
-        print("haplotype not in landscape file (need a combinarially complete landscape):", pep)
+    pep = arr_to_str(aa_string)
+    try:
+        fitness = land.at[pep, 'Fitness']
+    except KeyError:
+        print(f"Error: Haplotype '{pep}' not found in landscape. The landscape must be combinatorially complete.")
         sys.exit()
-        
-    return dict_fit[pep]
+
+    return fitness
 
 
-def population_fitness(pop: np.ndarray, land) -> list:
+def population_fitness(pop: np.ndarray, land: pd.DataFrame) -> list:
     """
     Returns a list containing only the fitness values of the sequences in the population.
-    Fitness values are obtained from the fitness_values data frame.
+    Fitness values are obtained from the landscape data frame.
     Fitness values have the same index in this list as the index of the sequence in the population.
 
     Args:
         pop: numpy.ndarray with ndim = 2, dtype = str.
             2D numpy ndarray that contains all the amino acid sequences in a population.
+
+        land: pandas.DataFrame
+            Data frame of the fitness landscape. The landscape must contain all possible sequences and their
+            corresponding fitness value.
+
     Returns:
         list
     """
     return [aa_fitness(pop[i], land) for i in range(pop.shape[0])]
 
 
-def get_elites(pop: np.ndarray, population_metrics: list, land) -> list:
+def get_elites(pop: np.ndarray, population_metrics: list, land: pd.DataFrame) -> list:
     """
     Used by a Population object to find the top 10 sequences of the population based on fitness/novelty/combo without
     having to sort the entire list of values.
@@ -85,6 +93,10 @@ def get_elites(pop: np.ndarray, population_metrics: list, land) -> list:
             Population.population_combo().
             This list contains only the fitness/novelty/combo scores of the sequences in the population.
             The scores have the same index in the list as the index of the corresponding sequence in the population.
+
+        land: pandas.DataFrame
+            Data frame of the fitness landscape. The landscape must contain all possible sequences and their
+            corresponding fitness value.
 
     Returns:
         list of 10 * [Sequence's index in population, Sequence string, Fitness]
@@ -103,30 +115,41 @@ def get_elites(pop: np.ndarray, population_metrics: list, land) -> list:
 
 
 class Population:
-    def __init__(self, pop_size, land, rng_seed, aa_sets, pep_len):
+    def __init__(self, pop_size: int, pep_len: int, aa_sets: dict, land: pd.DataFrame, rng_seed: object) -> None:
         """
-        Creates Population object. Contains amino acid sequences of length 4, along with other information about the
-        population.
+        Creates Population object. Contains amino acid sequences, along with other information about the population.
 
-        Args:
+        Args
             pop_size: int, default = 100.
                 Number of sequences in the population. pop_size must be greater than 10. If pop_size is not a multiple
                 of 10, it will change to become the largest multiple of 10 that is less than the given pop_size.
                 After this, the population size remains constant in this simulation.
 
+            pep_len: int
+                Length of the amino acid sequences. This should be obtained from the landscape file.
+
+            aa_sets: dict
+                Dictionary containing the amino acids that have been seen at each site in the landscape.
+
+            land: pandas.DataFrame
+                Data frame of the fitness landscape. The landscape must contain all possible sequences and their
+                corresponding fitness value.
+
             rng_seed: {None, int, array_like[ints], SeedSequence, BitGenerator, Generator}, default = None.
                 To generate reproducible results, specify a seed to initialize numpy.random.default_rng().
                 By default, the rng results will be unpredictable.
         """
-        #print(self.pop_size)
         if pop_size < 10:
             raise ValueError('The population size should be at least 10.')
         self.pop_size = (pop_size // 10) * 10
 
         # Generation counter that counts the number of times the population has undergone mutations.
         self.generation = 0
+
         self.pep_len = pep_len
+
         self.land = land
+
         self.aa_sets = aa_sets
 
         # Numpy rng
@@ -134,12 +157,8 @@ class Population:
 
         # Initialize a population of a single random amino acid sequence
         # Each amino acid has equal probability of being picked for a position
-        pep_start = []
-        for pos in aa_sets:
-            pep_start.append(self.rng.choice(aa_sets[pos]))
-            
+        pep_start = [self.rng.choice(aa_sets[pos]) for pos in aa_sets]
         self.population = np.broadcast_to(pep_start, (pop_size, pep_len)).copy()
-        #print(self.population)
 
         # Elite list contains each generation's top 10 sequences based on fitness, novelty, or a combination.
         # Will be updated during each selection function.
@@ -171,13 +190,13 @@ class Population:
             # Get the number of sites to mutate in an amino acid string.
             num_mut = self.rng.poisson(mut_rate)
             if num_mut > 0:
-                # Ensure that number of mutations is 4 or less because sequence length is 4.
+                # Ensure that number of mutations is at most the peptide length.
                 num_mut = min(num_mut, self.pep_len)
                 # Select random indices to mutate.
                 mut_indices = self.rng.choice(self.pep_len, num_mut, replace=False)
                 # Mutate amino acids at the chosen indices.
                 for i in mut_indices:
-                    #possible_aa = amino_acids.copy()
+                    # possible_aa = amino_acids.copy()
                     possible_aa = self.aa_sets[i].copy()
                     possible_aa.remove(self.population[n, i])
                     self.population[n, i] = self.rng.choice(possible_aa)
@@ -197,7 +216,8 @@ class Population:
 
         # Broadcast elites to 10% of pop size, then append.
         for seq in elite_nparray:
-            self.population = np.append(self.population, np.broadcast_to(seq, (self.pop_size // 10, self.pep_len)), axis=0)
+            self.population = np.append(self.population, np.broadcast_to(seq, (self.pop_size // 10, self.pep_len)),
+                                        axis=0)
         return
 
     def objective_selection(self) -> None:
@@ -302,8 +322,9 @@ class Population:
             for n in range(compare_pop.shape[0]):
                 # Distance is evaluated by finding the difference in the total polarity values of the amino acids.
                 # TODO: Change distance calculation? Include hydropathy?
+                compare_seq = arr_to_str(compare_pop[n])
                 distances_to_compare_pop.append(
-                    abs(sequence_behavior[seq]['polarity'] - sequence_behavior[arr_to_str(compare_pop[n])]['polarity'])
+                    abs(sequence_behavior[seq]['polarity'] - sequence_behavior[compare_seq]['polarity'])
                 )
             distances_to_compare_pop.sort()
 
