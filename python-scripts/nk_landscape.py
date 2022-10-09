@@ -47,7 +47,7 @@ import sys
 
 parser = argparse.ArgumentParser(description='Create a NK landscape. Forked from https://github.com/Mac13kW/NK_model @author: Maciej Workiewicz; and https://github.com/song88180/fitness-landscape-error')
 parser.add_argument('-N', type=int, help='Number of variable sites (i.e., SNVs, single-nucleotide variants) (Default 10)', default = 10)
-parser.add_argument('-K', type=int, help='Number of interacting sites, 0 < K < N', default = 2)
+parser.add_argument('-K', type=int, help='Number of interacting sites, from 0 to N-1, inclusive', default = 2)
 parser.add_argument('-t', '--tag', help='tag for run', default='test')
 
 args = parser.parse_args()
@@ -57,7 +57,7 @@ logging.basicConfig(level=logging.DEBUG)
 N = args.N
 K = args.K
 
-if K >= N or K <= 0:
+if K >= N or K < 0:
     logging.info("K should be between 1 and N-1")
     sys.exit()
 
@@ -82,7 +82,8 @@ which_imatrix = 1  # defines the type of an interaction matrix
 def imatrix_rand():
     '''
     This function takes the number of N elements and K interdependencies
-    and creates a random interaction matrix.
+    and creates a random interaction matrix. K=0 works: an additive, single peak landscape
+    K >= N gets an all-1 matrix
     '''
     Int_matrix_rand = np.zeros((N, N))
     for aa1 in np.arange(N):
@@ -95,12 +96,13 @@ def imatrix_rand():
             Int_matrix_rand[aa1, aa2] = 1  # we turn on the interactions with K other variables
     return(Int_matrix_rand)
 
-
+#print(imatrix_rand())
+#sys.exit()
 #==============================================================================
 # Below are the other three types of interaction matrices.
 # You can edit those if you want to check other petterns of interactions.
 #==============================================================================
-
+'''
 if which_imatrix == 2:  # MODULAR
     K = 2  # set to the average value
     Int_matrix = \
@@ -170,7 +172,7 @@ elif which_imatrix == 7:  # LOCAL Rivkin and Siggelkow, 2007
                  [0, 0, 0, 1, 1, 1],
                  [1, 0, 0, 0, 1, 1]
                  ])
-
+'''
 # *** NK GENERATING FUNCTIONS ***********************************************
 def calc_fit(NK_land_, inter_m, Current_position, Power_key_):
     '''
