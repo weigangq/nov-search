@@ -12,7 +12,7 @@ parser.add_argument('-t', '--tag', default='test',
                     help='Prefix for output files. Default: "test"')
 
 parser.add_argument('-land', '--landscape_file', required=True,
-                    help='landscape file, containing tab-sep 2 columns, named as "Variants" and "Fitness". Required')
+                    help='landscape file, output from nk_landscape.py. Required')
 
 parser.add_argument('-s', '--rng_seed', default=None,
                     help='RNG seed to generate reproducible rng results. Default = None (i.e., unpredictable rng.')
