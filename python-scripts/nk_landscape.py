@@ -326,6 +326,7 @@ elapsed_time = time() - start
 #print ('time: ' + str("%.2f" % elapsed_time) + ' sec')
 
 num_hap = 2 ** N
+id_len = len(str(num_hap)) # for padding 0 to ids
 total_fits = normalize([Landscape_data[0, n, (2*N)] for n in range(num_hap)]) 
 print("tag\tid\thaplotype\tfitness\tfit_norm\tlocal_peak\tglobal_peak\tN\tK")
 id = 0
@@ -334,7 +335,9 @@ for n in range(num_hap):
     fits = Landscape_data[0,n,N:(2*N+1)]
     local_peak = int(Landscape_data[0, n, 2*N+1])
     global_peak = int(Landscape_data[0, n, 2*N+2])
-    print(f"{args.tag}\tH{id:04d}\t{hap}\t{fits[-1]:6f}\t{total_fits[n]:6f}\t{local_peak}\t{global_peak}\t{N}\t{K}")
+    print(f"{args.tag}", end = "\t")
+    print(("H{0:0>" + str(id_len) + "}").format(id), end = "\t")
+    print(f"{hap}\t{fits[-1]:6f}\t{total_fits[n]:6f}\t{local_peak}\t{global_peak}\t{N}\t{K}")
     id += 1
 
 sys.exit()
