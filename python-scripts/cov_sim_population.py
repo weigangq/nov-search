@@ -4,7 +4,9 @@ import pandas as pd
 import sys
 import re
 
-# List of all possible letters representing amino acids.
+################################################################
+# AA distances
+# List of all possible letters representing amino acids, sorted
 amino_acids = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
 
 # Amino acid physicochemical properties
@@ -18,6 +20,65 @@ hydropathy = {'A': 1.8, 'C': 2.5, 'D': -3.5, 'E': -3.5, 'F': 2.8, 'G': -0.4, 'H'
               'M': 1.9, 'N': -3.5, 'P': -1.6, 'Q': -3.5, 'R': -4.5, 'S': -0.8, 'T': -0.7, 'V': 4.2, 'W': -0.9, 'Y': -1.3
               }
 
+# Isoelectric index (Zimmerman, 1968)
+iso = {'A': 6, 'C': 5.05, 'D': 2.77, 'E': 3.22, 'F': 5.48, 'G': 5.97, 'H': 7.59, 'I': 6.02, 'K': 9.74, 'L': 5.98,
+              'M': 5.74, 'N': 5.41, 'P': 6.3, 'Q': 5.65, 'R': 10.76, 'S': 5.68, 'T': 5.66, 'V': 5.96, 'W': 5.89, 'Y': 5.66
+              }
+
+# weights for calculating novelty scores
+dist_wts = { 'pos': 0.7, 'pol': 0.1, 'hydro': 0.1, 'iso': 0.1}
+
+pol_dist = {}
+hydro_dist = {}
+iso_dist = {}
+for i in range(len(amino_acids)): # sorted aa list
+    for j in range(i, len(amino_acids)):
+        pol_dist[(amino_acids[i], amino_acids[j])] = abs(polarity[amino_acids[i]] - polarity[amino_acids[j]])
+        hydro_dist[(amino_acids[i], amino_acids[j])] = abs(hydropathy[amino_acids[i]] - hydropathy[amino_acids[j]])
+        iso_dist[(amino_acids[i], amino_acids[j])] = abs(iso[amino_acids[i]] - iso[amino_acids[j]])
+
+def normalize(arr, t_min, t_max):
+    norm_arr = []
+    diff = t_max - t_min
+    diff_arr = max(arr) - min(arr)
+    for i in arr:
+        temp = (((i - min(arr))*diff)/diff_arr) + t_min
+        norm_arr.append(temp)
+    return norm_arr
+
+def normalize_dict(dic, t_min, t_max):
+    norm_dic = {}
+    diff = t_max - t_min
+    vals = list(dic.values())
+    diff_arr = max(vals) - min(vals)
+    for k in dic:
+        temp = (((dic[k] - min(vals))*diff)/diff_arr) + t_min
+        norm_dic[k] = {'val': round(dic[k],6), 'norm': round(temp,6)}
+    return norm_dic
+
+pol_norm = normalize_dict(pol_dist, 0, 1)
+hyd_norm = normalize_dict(hydro_dist, 0, 1)
+iso_norm = normalize_dict(iso_dist, 0, 1)
+
+
+def get_distance(seq1: str, seq2: str, seq_behavior: dict ) -> float:
+    aa_pair = [seq_behavior[seq1]['aa'], seq_behavior[seq2]['aa']]
+    aa_pair.sort()
+    aa1 = aa_pair[0]
+    aa2 = aa_pair[1]
+    key = (aa1, aa2)
+    dist = pol_norm[key]['norm'] * dist_wts['pol'] + hyd_norm[key]['norm'] * dist_wts['hydro'] + iso_norm[key]['norm'] * dist_wts['iso']
+    
+    pos1 = seq_behavior[seq1]['position']
+    pos2 = seq_behavior[seq2]['position']
+    diff_pos = abs(pos1 - pos2)
+    diff_max = 200 # this is hard coded for RBD dataset for now (not ideal)
+    diff_norm = diff_pos/diff_max
+    
+    dist += diff_norm * dist_wts['pos']
+    return dist
+
+#######################################################
 # Record of sequence behavior
 sequence_behavior = {}
 
@@ -112,10 +173,14 @@ def get_elites(pop: np.ndarray, population_metrics: list, land: pd.DataFrame) ->
     Returns:
         list of 10 * [Sequence's index in population, Sequence string, Fitness]
     """
-    # Temporary elite list containing [Sequence's population index, Metric]
+    # Temporary elite list containing [Sequence's population index, Metric] check with Winston
     elite = [[n, population_metrics[n]] for n in range(10)]
     elite_min = min(elite, key=lambda x: x[1])
+    #print(elite)
+    #print(elite_min)
+    #print(len(population_metrics))
     for index in range(10, len(pop)):
+        #print(index, end = "\t")
         if population_metrics[index] > elite_min[1]:
             elite.remove(elite_min)
             elite.append([index, population_metrics[index]])
@@ -177,7 +242,9 @@ class Population:
         self.elite1 = max(self.elite, key=lambda x: x[2])
 
         # Archive contains sequences that were novel. Used during novelty and combo search.
-        self.archive = np.empty(self.pop_size, dtype=str)
+        # self.archive = np.empty(self.pop_size, dtype=str); why? Ask Winston
+        self.archive = np.array([])
+        #print(self.generation, "\t", len(self.population))
 
     def mutate(self) -> None:
         """
@@ -206,12 +273,13 @@ class Population:
         # Sequences in numpy.ndarray format.
         elite_nparray = [self.population[e[0]] for e in self.elite]
 
-        # Clear population array.
-        self.population = np.empty(self.pop_size, dtype=str)
-
+        # Clear population array. # check with Winston
+        # self.population = np.empty(self.pop_size, dtype=str)
+        self.population = np.array([])
         # Broadcast elites to 10% of pop size, then append.
         for seq in elite_nparray:
             self.population = np.append(self.population, np.broadcast_to(seq, (self.pop_size // 10)))
+        #print(self.generation, "\t", len(self.elite), "\t", len(self.population))
         return
 
     def objective_selection(self) -> None:
@@ -297,9 +365,11 @@ class Population:
                 behavior = {}
                 #polarity_change = abs(polarity[mut_aa] - polarity[wt_aa])
                 #hydropathy_change = abs(hydropathy[mut_aa] - hydropathy[wt_aa])
-                behavior['polarity'] = polarity[mut_aa]
-                behavior['hydropathy'] = hydropathy[mut_aa]
+                #behavior['polarity'] = polarity[mut_aa]
+                #behavior['hydropathy'] = hydropathy[mut_aa]
+                #behavior['iso'] = iso[mut_aa]
                 behavior['position'] = pos
+                behavior['aa'] = mut_aa
                 sequence_behavior[seq] = behavior
         #print(sequence_behavior)
 
@@ -316,16 +386,12 @@ class Population:
                 # then physiochemistry (pretty minor), as intended
                 if not compare_pop[n]: # empty string
                     #distances_to_compare_pop.append(0)
-                    break
+                    continue
                 else:
                     compare_seq = compare_pop[n]
                     compare_pos = get_mut_pos(compare_seq) # mutation position
                     compare_aa = get_mut_aa(compare_seq) # mutated aa
-                    distances_to_compare_pop.append(
-                        abs(sequence_behavior[seq]['position'] - sequence_behavior[compare_seq]['position']) + 
-                        abs(sequence_behavior[seq]['polarity'] - sequence_behavior[compare_seq]['polarity']) +
-                        abs(sequence_behavior[seq]['hydropathy'] - sequence_behavior[compare_seq]['hydropathy'])
-                    )
+                    distances_to_compare_pop.append(get_distance(seq, compare_seq, sequence_behavior))
             distances_to_compare_pop.sort()
 
             # Calculate the sequence's average distance to the k-nearest neighbors (i.e., the sparsity).
@@ -339,14 +405,14 @@ class Population:
                 # Method 1: Fixed size random archive.
                 if self.rng.random() < prob:
                     # If the archive is full, remove the oldest individual.
-                    if self.archive.shape[0] > self.pop_size * 2:
-                        self.archive = np.delete(self.archive, 0, axis=0)
-                    self.archive = np.concatenate((self.archive, np.array([self.population[index]])), axis=None)
+                    if len(self.archive) > self.pop_size * 2:
+                        self.archive = np.delete(self.archive, 0)
+                    self.archive = np.concatenate((self.archive, self.population[index]), axis=None)
             else:
                 # Method 2: Unrestricted archive size using adaptive threshold.
                 num_eval += 1
                 if sparsity > threshold:
-                    self.archive = np.concatenate((self.archive, np.array([self.population[index]])), axis=None)
+                    self.archive = np.concatenate((self.archive, self.population[index]), axis=None)
                     counter += 1
                 if num_eval == 20:
                     if counter > add_max:
@@ -365,6 +431,7 @@ class Population:
         Selects the top 10 sequences by novelty value, then replaces the population with the elites (most novel).
         """
         pop_novelty = self.population_novelty(nearest_neighbors=nearest_neighbors, archive_method=archive_method, prob=prob)
+        #print(len(pop_novelty))
         self.elite = get_elites(self.population, pop_novelty, self.land)
         self.elite1 = max(self.elite, key=lambda x: x[2])
         self.replace_pop()

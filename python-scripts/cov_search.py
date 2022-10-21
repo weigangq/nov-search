@@ -74,7 +74,7 @@ p = Population(pop_size=args.pop_size,
                land=df,
                rng_seed=args.rng_seed
                )
-#print(p.elite)
+#print(p.population)
 #sys.exit()
 
 # Fitness file (elite.tsv): each generation's 10 highest fitness strings and fitness.
@@ -89,8 +89,8 @@ for n in range(args.generation):
     # elite.write(f"{tagRun}\t{p.generation}\t{p.elite1[1]}\t{p.elite1[2]}\t{args.algorithm}\n")
 
     # End the simulation when a sequence reaches the peak.
-    # if p.elite1[2] == fitness_peak_value:
-        #break
+    if p.elite1[2] == fitness_peak_value:
+        break
 
     p.mutate()
 
