@@ -64,7 +64,9 @@ def get_distance(seq1: str, seq2: str, seq_behavior: dict ) -> float:
     pep1 = list(seq1)
     pep2 = list(seq2)
     
-    chem_dist = 0
+    dist_pol = 0
+    dist_hydro = 0
+    dist_iso = 0
     hamming_dist = 0
     for i in range(len(seq1)):
         aa_pair = [pep1[i], pep2[i]]
@@ -72,12 +74,16 @@ def get_distance(seq1: str, seq2: str, seq_behavior: dict ) -> float:
         aa1 = aa_pair[0]
         aa2 = aa_pair[1]
         key = (aa1, aa2)
-        chem_dist += pol_norm[key]['norm'] * dist_wts['pol'] + hyd_norm[key]['norm'] * dist_wts['hydro'] + iso_norm[key]['norm'] * dist_wts['iso']
+        dist_pol += pol_norm[key]['norm'] 
+        dist_hydro += hyd_norm[key]['norm']
+        dist_iso += iso_norm[key]['norm']
         
         if pep1[i] != pep2[i]:
             hamming_dist += 1
     
-    return chem_dist + hamming_dist/len(seq1) * dist_wts['pos']
+    d = (dist_pol * dist_wts['pol'] + dist_hydro * dist_wts['hydro'] + dist_iso * dist_wts['iso'] + hamming_dist* dist_wts['pos'])/len(seq1)
+    #print(d)
+    return d
 
 #######################################################
 sequence_behavior = {}
@@ -164,6 +170,9 @@ def get_elites(pop: np.ndarray, population_metrics: list, land: pd.DataFrame) ->
         list of 10 * [Sequence's index in population, Sequence string, Fitness]
     """
     # Temporary elite list containing [Sequence's population index, Metric]
+    # replace the smallest one, iteratively
+    # metric is either fitness, sparsity, or a weighted sum of the two
+    # regardless, get the top 10 highest
     elite = [[n, population_metrics[n]] for n in range(10)]
     elite_min = min(elite, key=lambda x: x[1])
     for index in range(10, pop.shape[0]):
@@ -383,20 +392,20 @@ class Population:
             compare_pop = np.concatenate((self.archive, np.delete(self.population, index, 0)), axis=0)
             distances_to_compare_pop = []
             for n in range(compare_pop.shape[0]):
-                # Distance is evaluated by finding the difference in the total polarity values of the amino acids.
-                # TODO: Change distance calculation? Include hydropathy?
+                # Distance is evaluated by normalized chem and hamming distances (see top)
                 compare_seq = arr_to_str(compare_pop[n])
                 distances_to_compare_pop.append(
                     #abs(sequence_behavior[seq]['polarity'] - sequence_behavior[compare_seq]['polarity'])
                     get_distance(seq, compare_seq, sequence_behavior)
                 )
-            distances_to_compare_pop.sort()
+            distances_to_compare_pop.sort() #  small -> large distances
+            #print(distances_to_compare_pop[0:10])
 
             # Calculate the sequence's average distance to the k-nearest neighbors (i.e., the sparsity).
             sparsity = 0
             for dist in distances_to_compare_pop[:nearest_neighbors]:
                 sparsity += dist
-            pop_novelty.append(sparsity)
+            pop_novelty.append(sparsity/nearest_neighbors)
 
             # Update the archive.
             if archive_method == 1:
@@ -422,6 +431,7 @@ class Population:
                     counter = 0
 
         # Return list of novelty values.
+        # print(pop_novelty)
         return pop_novelty
 
     def novelty_selection(self, nearest_neighbors: int = 10, archive_method: int = 1, prob: float = 0.10) -> None:

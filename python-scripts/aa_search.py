@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from aa_sim_population_v2 import *
+from aa_sim_population import *
 import argparse
 import logging
 import sys
@@ -86,7 +86,7 @@ p = Population(pop_size=args.pop_size,
 print('tag\tgen\telite_hap\telite_fitness\talgorithm')
 
 for n in range(args.generation):
-    print(f"{tagRun}\t{p.generation}\t{p.elite1[1]}\t{p.elite1[2]}\t{args.algorithm}")
+    print(f"{tagRun}\t{p.generation}\t{p.elite1[1]}\t{round(p.elite1[2],6)}\t{args.algorithm}")
 
     # elite.write(f"{tagRun}\t{p.generation}\t{p.elite1[1]}\t{p.elite1[2]}\t{args.algorithm}\n")
 
