@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from aa_sim_population import *
+from aa_sim_population_v2 import *
 import argparse
 import logging
 import sys

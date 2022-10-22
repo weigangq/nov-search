@@ -31,7 +31,7 @@ dist_wts = { 'pos': 0.7, 'pol': 0.1, 'hydro': 0.1, 'iso': 0.1}
 pol_dist = {}
 hydro_dist = {}
 iso_dist = {}
-for i in range(len(amino_acids)): # sorted aa list
+for i in range(len(amino_acids)): # sorted aa list, self-inclusive
     for j in range(i, len(amino_acids)):
         pol_dist[(amino_acids[i], amino_acids[j])] = abs(polarity[amino_acids[i]] - polarity[amino_acids[j]])
         hydro_dist[(amino_acids[i], amino_acids[j])] = abs(hydropathy[amino_acids[i]] - hydropathy[amino_acids[j]])

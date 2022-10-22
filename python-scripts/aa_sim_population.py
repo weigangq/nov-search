@@ -3,7 +3,9 @@ import numpy as np
 import pandas as pd
 import sys
 
-# List of all possible letters representing amino acids.
+################################################################
+# AA distances
+# List of all possible letters representing amino acids, sorted
 amino_acids = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
 
 # Amino acid physicochemical properties
@@ -17,7 +19,67 @@ hydropathy = {'A': 1.8, 'C': 2.5, 'D': -3.5, 'E': -3.5, 'F': 2.8, 'G': -0.4, 'H'
               'M': 1.9, 'N': -3.5, 'P': -1.6, 'Q': -3.5, 'R': -4.5, 'S': -0.8, 'T': -0.7, 'V': 4.2, 'W': -0.9, 'Y': -1.3
               }
 
-# Record of sequence behavior
+# Isoelectric index (Zimmerman, 1968)
+iso = {'A': 6, 'C': 5.05, 'D': 2.77, 'E': 3.22, 'F': 5.48, 'G': 5.97, 'H': 7.59, 'I': 6.02, 'K': 9.74, 'L': 5.98,
+              'M': 5.74, 'N': 5.41, 'P': 6.3, 'Q': 5.65, 'R': 10.76, 'S': 5.68, 'T': 5.66, 'V': 5.96, 'W': 5.89, 'Y': 5.66
+              }
+
+# weights for calculating novelty scores
+dist_wts = { 'pos': 0.7, 'pol': 0.1, 'hydro': 0.1, 'iso': 0.1}
+
+pol_dist = {}
+hydro_dist = {}
+iso_dist = {}
+for i in range(len(amino_acids)): # sorted aa list
+    for j in range(i, len(amino_acids)):
+        pol_dist[(amino_acids[i], amino_acids[j])] = abs(polarity[amino_acids[i]] - polarity[amino_acids[j]])
+        hydro_dist[(amino_acids[i], amino_acids[j])] = abs(hydropathy[amino_acids[i]] - hydropathy[amino_acids[j]])
+        iso_dist[(amino_acids[i], amino_acids[j])] = abs(iso[amino_acids[i]] - iso[amino_acids[j]])
+
+def normalize(arr, t_min, t_max):
+    norm_arr = []
+    diff = t_max - t_min
+    diff_arr = max(arr) - min(arr)
+    for i in arr:
+        temp = (((i - min(arr))*diff)/diff_arr) + t_min
+        norm_arr.append(temp)
+    return norm_arr
+
+def normalize_dict(dic, t_min, t_max):
+    norm_dic = {}
+    diff = t_max - t_min
+    vals = list(dic.values())
+    diff_arr = max(vals) - min(vals)
+    for k in dic:
+        temp = (((dic[k] - min(vals))*diff)/diff_arr) + t_min
+        norm_dic[k] = {'val': round(dic[k],6), 'norm': round(temp,6)}
+    return norm_dic
+
+pol_norm = normalize_dict(pol_dist, 0, 1)
+hyd_norm = normalize_dict(hydro_dist, 0, 1)
+iso_norm = normalize_dict(iso_dist, 0, 1)
+
+
+def get_distance(seq1: str, seq2: str, seq_behavior: dict ) -> float:
+    pep1 = list(seq1)
+    pep2 = list(seq2)
+    
+    chem_dist = 0
+    hamming_dist = 0
+    for i in range(len(seq1)):
+        aa_pair = [pep1[i], pep2[i]]
+        aa_pair.sort()
+        aa1 = aa_pair[0]
+        aa2 = aa_pair[1]
+        key = (aa1, aa2)
+        chem_dist += pol_norm[key]['norm'] * dist_wts['pol'] + hyd_norm[key]['norm'] * dist_wts['hydro'] + iso_norm[key]['norm'] * dist_wts['iso']
+        
+        if pep1[i] != pep2[i]:
+            hamming_dist += 1
+    
+    return chem_dist + hamming_dist/len(seq1) * dist_wts['pos']
+
+#######################################################
 sequence_behavior = {}
 
 
@@ -172,7 +234,7 @@ class Population:
 
         # Archive contains sequences that were novel. Used during novelty and combo search.
         self.archive = np.empty((0, pep_len), dtype=str)
-
+        
     def mutate(self, mut_rate: float = 1) -> None:
         """
         Mutate a random number of residues in each sequence in the population.
@@ -213,7 +275,6 @@ class Population:
 
         # Clear population array.
         self.population = np.empty((0, self.pep_len), dtype=str)
-
         # Broadcast elites to 10% of pop size, then append.
         for seq in elite_nparray:
             self.population = np.append(self.population, np.broadcast_to(seq, (self.pop_size // 10, self.pep_len)),
@@ -306,12 +367,14 @@ class Population:
                 continue
             else:
                 behavior = {}
-                polarity_value, hydropathy_value = 0, 0
+                polarity_value, hydropathy_value, iso_value = 0, 0, 0
                 for residue in self.population[index]:
                     polarity_value += polarity[residue]
                     hydropathy_value += hydropathy[residue]
+                    iso_value += iso[residue]
                 behavior['polarity'] = polarity_value
                 behavior['hydropathy'] = hydropathy_value
+                behavior['iso'] = iso_value
                 sequence_behavior[seq] = behavior
 
         for index in range(self.pop_size):
@@ -324,7 +387,8 @@ class Population:
                 # TODO: Change distance calculation? Include hydropathy?
                 compare_seq = arr_to_str(compare_pop[n])
                 distances_to_compare_pop.append(
-                    abs(sequence_behavior[seq]['polarity'] - sequence_behavior[compare_seq]['polarity'])
+                    #abs(sequence_behavior[seq]['polarity'] - sequence_behavior[compare_seq]['polarity'])
+                    get_distance(seq, compare_seq, sequence_behavior)
                 )
             distances_to_compare_pop.sort()
 
