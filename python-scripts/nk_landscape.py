@@ -38,17 +38,19 @@ The code has been tested on Python 2.7 and 3.6 and higher
 import numpy as np
 import itertools
 import os # new
-from time import time
-import matplotlib.pyplot as plt
+#from time import time
+#import matplotlib.pyplot as plt
 import random
 import argparse
 import logging
 import sys
+from scipy import stats
 
 parser = argparse.ArgumentParser(description='Create a NK landscape. Forked from https://github.com/Mac13kW/NK_model @author: Maciej Workiewicz; and https://github.com/song88180/fitness-landscape-error')
 parser.add_argument('-N', type=int, help='Number of variable sites (i.e., SNVs, single-nucleotide variants) (Default 10)', default = 10)
 parser.add_argument('-K', type=int, help='Number of interacting sites, from 0 to N-1, inclusive', default = 2)
 parser.add_argument('-t', '--tag', help='tag for run', default='test')
+parser.add_argument('-e', '--exp_fit', action = 'store_true', help = 'exponential fitness. Otherwise normal')
 
 args = parser.parse_args()
 logging.basicConfig(level=logging.DEBUG)
@@ -61,7 +63,7 @@ if K >= N or K < 0:
     logging.info("K should be between 1 and N-1")
     sys.exit()
 
-start = time()  # starts the clock used to measure the execution speed
+#start = time()  # starts the clock used to measure the execution speed
 
 # *** MODEL INPUTS ****************************************************
 i = 1  # we will generate 1000 NK landscapes to begin with     |
@@ -322,12 +324,20 @@ for i_2 in np.arange(i):
 #np.save(file_name + '/NK_workshop/NK_land_type_' + str(which_imatrix) +
 #        '_K_' + str(K) + '_i_' + str(i) + '.npy', Landscape_data)
 
-elapsed_time = time() - start
+#elapsed_time = time() - start
 #print ('time: ' + str("%.2f" % elapsed_time) + ' sec')
+
+def exp_fitness(array):
+    '''
+    Normalize & exponentiate (makes more like real fitness)
+    '''
+    return np.exp(stats.zscore(array))
 
 num_hap = 2 ** N
 id_len = len(str(num_hap)) # for padding 0 to ids
 total_fits = normalize([Landscape_data[0, n, (2*N)] for n in range(num_hap)]) 
+if args.exp_fit:
+    total_fits = exp_fitness([ np.exp(Landscape_data[0, n, (2*N)]) for n in range(num_hap) ])
 print("tag\tid\thaplotype\tfitness\tfit_norm\tlocal_peak\tglobal_peak\tN\tK")
 id = 0
 for n in range(num_hap):

@@ -84,7 +84,7 @@ for n in range(args.generation):
           f"{fitness_peak.at[0, 'K']}\t{args.algorithm}")
 
     # end when reaches the global peak
-    if p.elite1[2] == 1:
+    if p.elite1[1] == fitness_peak.at[0, 'haplotype']:
         break
 
     p.mutate(mut_rate=args.mutation_rate)
