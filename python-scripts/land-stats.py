@@ -101,7 +101,6 @@ def greedy_climb(G, nd, pt):
 
 if args.b or args.e is True:
     # Construct graph
-    recs = df.to_dict("records")
     dHap = {}
     for rec in recs:
         dHap[rec['haplotype']] = {'id': rec['id'], 'fit': rec['fitness']}
