@@ -39,6 +39,7 @@ Run `python land-stats.py [args]` to get the landscape information.
 - `-p` - Prints the number of peaks in the landscape.
 - `-rs` - Prints the roughness to slope (r/s) ratio.
 - `b` - Prints the basin of attraction.
+- `e` - Prints the escape edges.
 
 e.g.: `python land-stats.py -land nov-search/data/nk-landscape.tsv -l -b`
 

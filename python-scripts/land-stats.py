@@ -9,15 +9,12 @@ Original file is located at
     https://github.com/Mac13kW/NK_model/blob/master/NK%20landscapes%20-%20a%20hands-on%20exercise%202019.pdf
 """
 import numpy as np
-import numpy.random as nrand
 import pandas as pd
-import multiprocessing
 import argparse
 from sklearn.linear_model import LinearRegression
-import sys
-import logging
 import copy
 import networkx as nx
+from scipy.spatial.distance import hamming
 
 # Parameters -------------------------------------------------------------------
 parser = argparse.ArgumentParser(description='Landscape complexity scores')
@@ -27,28 +24,28 @@ parser.add_argument('-n', '--hap_num', action = 'store_true', help='Number of ha
 parser.add_argument('-p', '--peaks', action = 'store_true', help='Maximum number of peaks')
 parser.add_argument('-rs', action = 'store_true', help='Roughness')
 parser.add_argument('-b', action = 'store_true', help='Basin of attraction')
+parser.add_argument('-e', action = 'store_true', help='Escape edge')
 
 args = parser.parse_args()
-logging.basicConfig(level=logging.DEBUG)
 
 df = pd.read_csv(args.landscape_file, sep="\t", dtype={'haplotype': str})
 seq_len = len(df.at[0, 'haplotype'])
 recs = df.to_dict('records')
 
 if args.hap_len is True:
-    print(seq_len)
+    print('Number of variable sites:', seq_len)
 
 if args.hap_num is True:
-    print(df.shape)
+    print('Number of haplotypes:', df.shape[0])
 
-haps = []
-for rec in recs:
-    ar = list(rec['haplotype'])
-    ar.append(rec['fitness'])
-    haps.append(ar)
+if args.peaks or args.rs is True:
+    haps = []
+    for rec in recs:
+        ar = list(rec['haplotype'])
+        ar.append(rec['fitness'])
+        haps.append(ar)
+    landscape = np.array(haps, dtype=np.float64)
 
-landscape = np.array(haps, dtype=np.float64)
-#print(landscape.shape)
 
 # Ruggedness -------------------------------------------------------
 # Number of maxima (N max)
@@ -84,16 +81,16 @@ def cal_r_s(landscape):
     return round(roughness/slope,6)
 
 if args.peaks is True:
-    print(get_N_max(landscape))
+    print('Number of peaks:', get_N_max(landscape))
 
 if args.rs is True:
-    print(cal_r_s(landscape))
+    print('Roughness:', cal_r_s(landscape))
 
-# Calculate basin of attraction
+
+# Basin of attraction
 def fit_diff(G, nd, suc):
     return G.nodes[suc]['fit'] - G.nodes[nd]['fit'] # must be positive
 
-# recursive function
 def greedy_climb(G, nd, pt):
     if nd in peaks: # a peak, no successors; but inclusive as a basin hap
         pt.append(nd)
@@ -102,7 +99,7 @@ def greedy_climb(G, nd, pt):
     pt.append(best[0])
     greedy_climb(G, best[0], pt)
 
-if args.b is True:
+if args.b or args.e is True:
     # Construct graph
     recs = df.to_dict("records")
     dHap = {}
@@ -141,7 +138,8 @@ if args.b is True:
                     G.nodes[x]['subset'] = level
                     add_fit_edge(G, x, seen, level)
     seen_nodes = {}
-    add_fit_edge(DG, '0000000000', seen_nodes, 0) # start point
+    
+    add_fit_edge(DG, '0' * seq_len, seen_nodes, 0) # start point
 
     # node coloring by fitness 
     node_alphas = [ DG.nodes[x]['fit'] for x in DG.nodes]
@@ -159,10 +157,45 @@ if args.b is True:
         greedy_climb(DG, nd_i, path) # recursive until a peak
         peak = path[-1] # last item is the peak
         basins[peak].append(path)
-        #print(path)
 
+if args.b is True:
     print("id", "\t", "haplotype", "\t", "basin_size", "\t", "fitness")
     for p in basins:
         print(dHap[p]['id'], "\t", p, "\t", len(basins[p]), "\t", round(dHap[p]['fit'],6))
 
-sys.exit()
+if args.e is True:
+    D = 2 # mini distance between two solutions
+
+    # mutating i at a distance d<=D to reach j (for each solution of j): 
+    def distance_basin(basin, hap, d): # mutate hap to reach basin at a distance of d or fewer bits
+        solutions = [x[0] for x in basin] # starting points in a basin
+        dists = 0
+        for i in solutions:
+            d = hamming(list(i), list(hap)) * len(hap)
+            if d <= D:
+                dists += 1
+        return(dists)
+
+    # mutation distance of i to reach all peaks, self inclusive
+    def distance_all(nodes, hap, d): # within the i, distance to j
+        dists = 0
+        for nd in nodes:
+            basin = basins[nd]
+            dists += distance_basin(basin, hap, d)
+        return(dists)
+
+    escape = {}
+    for i in range(len(peaks)): # to each peak i
+        hap_i = peaks[i]
+        basin_i = basins[hap_i]
+        total = distance_all(peaks, hap_i, D) # distances to peak i from all nodes
+        for j in range(len(peaks)): # from another peak j
+            hap_j = peaks[j]
+            basin_j = basins[hap_j]
+            dists = distance_basin(basin_j, hap_i, D) # distance of j basins to LOi 
+            norm = dists/total
+            if dists > 0:
+                escape[ (hap_i, hap_j) ] = {'wt': norm, 'numb': dists, 'total': total}
+    for e in escape:
+        print(dHap[e[0]]['id'], "\t", e[0], "\t", dHap[e[1]]['id'], "\t", e[1],  "\t", round(escape[e]['wt'],4), "\t", escape[e]['numb'], "\t", escape[e]['total'])
+
