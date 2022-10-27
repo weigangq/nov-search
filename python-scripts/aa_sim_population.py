@@ -95,13 +95,20 @@ def euclidean_distance(seq1: str, seq2: str) -> dict:
     dists['pol'] = 0
     dists['hydro'] = 0
     dists['iso'] = 0
+    dists['all'] = 0
     for i in range(len(seq1)):
-        aa1 = pep1[i]
-        aa2 = pep2[i]
-        dists['pol'] += (polarity[aa1] - polarity[aa2]) ** 2
-        dists['hydro'] += (hydropathy[aa1] - hydropathy[aa2]) ** 2
-        dists['iso'] += (iso[aa1] - iso[aa2]) ** 2
-
+        aa_pair = [pep1[i], pep2[i]]
+        aa_pair.sort()
+        aa1 = aa_pair[0]
+        aa2 = aa_pair[1]
+        key = (aa1, aa2)
+        # use normalized diff to weight the three values equally
+        dists['pol'] +=  pol_norm[key]['norm'] ** 2
+        dists['hydro'] += hyd_norm[key]['norm']  ** 2
+        dists['iso'] += iso_norm[key]['norm']  ** 2
+        # not normalized:
+        #dists['iso'] += (iso[aa1] - iso[aa2]) ** 2 
+        dists['all'] += dists['pol'] + dists['hydro'] + dists['iso']
     return dists
 #######################################################
 sequence_behavior = {}
@@ -405,7 +412,7 @@ class Population:
                 behavior['hydropathy'] = hydropathy_value
                 behavior['iso'] = iso_value
                 '''
-                # behavior includes euclidean distances based on polarity, hydropathy, and isoelectricity
+                # behavior includes euclidean distances to the global peak (based on polarity, hydropathy, and isoelectricity)
                 sequence_behavior[seq] = euclidean_distance(seq, self.global_peak)
 
         for index in range(self.pop_size):

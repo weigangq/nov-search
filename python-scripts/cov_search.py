@@ -64,7 +64,8 @@ mt_AAs = [x for x in mtIDs ]
 fitness_peak = df[df['Fitness'] == df['Fitness'].max()]
 fitness_peak = fitness_peak.reset_index()
 fitness_peak_value = fitness_peak.at[0, 'Fitness']
-logging.info("fitness peak\n%s", fitness_peak)
+fitness_peak_hap = fitness_peak.at[0, 'Variant']
+logging.info("fitness peak\t%s\t%s", fitness_peak_hap, fitness_peak_value)
 #sys.exit()
 df.set_index('Variant', inplace=True)
 
@@ -72,7 +73,8 @@ p = Population(pop_size=args.pop_size,
                wt = wt_AAs,
                mut = mt_AAs,
                land=df,
-               rng_seed=args.rng_seed
+               rng_seed=args.rng_seed,
+               peak = fitness_peak_hap
                )
 #print(p.population)
 #sys.exit()
@@ -89,7 +91,7 @@ for n in range(args.generation):
     # elite.write(f"{tagRun}\t{p.generation}\t{p.elite1[1]}\t{p.elite1[2]}\t{args.algorithm}\n")
 
     # End the simulation when a sequence reaches the peak.
-    if p.elite1[2] == fitness_peak_value:
+    if p.elite1[1] == fitness_peak_hap:
         break
 
     p.mutate()

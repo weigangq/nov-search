@@ -78,6 +78,29 @@ def get_distance(seq1: str, seq2: str, seq_behavior: dict ) -> float:
     dist += diff_norm * dist_wts['pos']
     return dist
 
+def euclidean_distance(seq1: str, seq2: str) -> dict:
+    pep1 = list(seq1)
+    pep2 = list(seq2)
+    
+    dists = {}
+    dists['pol'] = 0
+    dists['hydro'] = 0
+    dists['iso'] = 0
+    dists['all'] = 0
+    for i in range(len(seq1)):
+        aa_pair = [pep1[i], pep2[i]]
+        aa_pair.sort()
+        aa1 = aa_pair[0]
+        aa2 = aa_pair[1]
+        key = (aa1, aa2)
+        # use normalized diff to weight the three values equally
+        dists['pol'] +=  pol_norm[key]['norm'] ** 2
+        dists['hydro'] += hyd_norm[key]['norm']  ** 2
+        dists['iso'] += iso_norm[key]['norm']  ** 2
+        #dists['iso'] += (iso[aa1] - iso[aa2]) ** 2
+        dists['all'] += dists['pol'] + dists['hydro'] + dists['iso']
+    return dists
+
 #######################################################
 # Record of sequence behavior
 sequence_behavior = {}
@@ -191,7 +214,7 @@ def get_elites(pop: np.ndarray, population_metrics: list, land: pd.DataFrame) ->
 
 
 class Population:
-    def __init__(self, pop_size: int, wt: list, mut: list, land: pd.DataFrame, rng_seed: object) -> None:
+    def __init__(self, pop_size: int, wt: list, mut: list, land: pd.DataFrame, rng_seed: object, peak: str) -> None:
         """
         Creates Population object. Contains amino acid sequences, along with other information about the population.
 
@@ -220,7 +243,7 @@ class Population:
         self.generation = 0
         self.mut = mut
 
-        #self.pep_len = pep_len
+        self.global_peak = peak
 
         self.land = land
         self.wt = wt
@@ -368,9 +391,9 @@ class Population:
                 #behavior['polarity'] = polarity[mut_aa]
                 #behavior['hydropathy'] = hydropathy[mut_aa]
                 #behavior['iso'] = iso[mut_aa]
-                behavior['position'] = pos
-                behavior['aa'] = mut_aa
-                sequence_behavior[seq] = behavior
+                #behavior['position'] = pos
+                #behavior['aa'] = mut_aa
+                sequence_behavior[seq] = euclidean_distance(seq, self.global_peak)
         #print(sequence_behavior)
 
         for index in range(self.pop_size):
@@ -389,8 +412,8 @@ class Population:
                     continue
                 else:
                     compare_seq = compare_pop[n]
-                    compare_pos = get_mut_pos(compare_seq) # mutation position
-                    compare_aa = get_mut_aa(compare_seq) # mutated aa
+                    #compare_pos = get_mut_pos(compare_seq) # mutation position
+                    #compare_aa = get_mut_aa(compare_seq) # mutated aa
                     distances_to_compare_pop.append(get_distance(seq, compare_seq, sequence_behavior))
             distances_to_compare_pop.sort()
 
