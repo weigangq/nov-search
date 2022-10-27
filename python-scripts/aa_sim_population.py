@@ -25,6 +25,8 @@ iso = {'A': 6, 'C': 5.05, 'D': 2.77, 'E': 3.22, 'F': 5.48, 'G': 5.97, 'H': 7.59,
               }
 
 # weights for calculating novelty scores
+# ACTY -> VCTY (pos: 1/4 * 0.7 + 2.1/max * 0.1 + 0, etc)
+# ACTY -> GWSQ: low chem dist, but large hamming distance
 dist_wts = { 'pos': 0.7, 'pol': 0.1, 'hydro': 0.1, 'iso': 0.1}
 
 pol_dist = {}
@@ -60,7 +62,7 @@ hyd_norm = normalize_dict(hydro_dist, 0, 1)
 iso_norm = normalize_dict(iso_dist, 0, 1)
 
 
-def get_distance(seq1: str, seq2: str, seq_behavior: dict ) -> float:
+def get_distance(seq1: str, seq2: str) -> float:
     pep1 = list(seq1)
     pep2 = list(seq2)
     
@@ -85,6 +87,22 @@ def get_distance(seq1: str, seq2: str, seq_behavior: dict ) -> float:
     #print(d)
     return d
 
+def euclidean_distance(seq1: str, seq2: str) -> dict:
+    pep1 = list(seq1)
+    pep2 = list(seq2)
+    
+    dists = {}
+    dists['pol'] = 0
+    dists['hydro'] = 0
+    dists['iso'] = 0
+    for i in range(len(seq1)):
+        aa1 = pep1[i]
+        aa2 = pep2[i]
+        dists['pol'] += (polarity[aa1] - polarity[aa2]) ** 2
+        dists['hydro'] += (hydropathy[aa1] - hydropathy[aa2]) ** 2
+        dists['iso'] += (iso[aa1] - iso[aa2]) ** 2
+
+    return dists
 #######################################################
 sequence_behavior = {}
 
@@ -186,7 +204,7 @@ def get_elites(pop: np.ndarray, population_metrics: list, land: pd.DataFrame) ->
 
 
 class Population:
-    def __init__(self, pop_size: int, pep_len: int, aa_sets: dict, land: pd.DataFrame, rng_seed: object) -> None:
+    def __init__(self, pop_size: int, pep_len: int, aa_sets: dict, land: pd.DataFrame, rng_seed: object, peak: str) -> None:
         """
         Creates Population object. Contains amino acid sequences, along with other information about the population.
 
@@ -222,6 +240,7 @@ class Population:
         self.land = land
 
         self.aa_sets = aa_sets
+        self.global_peak = peak
 
         # Numpy rng
         self.rng = np.random.default_rng(seed=rng_seed)
@@ -376,6 +395,7 @@ class Population:
                 continue
             else:
                 behavior = {}
+                '''
                 polarity_value, hydropathy_value, iso_value = 0, 0, 0
                 for residue in self.population[index]:
                     polarity_value += polarity[residue]
@@ -384,7 +404,9 @@ class Population:
                 behavior['polarity'] = polarity_value
                 behavior['hydropathy'] = hydropathy_value
                 behavior['iso'] = iso_value
-                sequence_behavior[seq] = behavior
+                '''
+                # behavior includes euclidean distances based on polarity, hydropathy, and isoelectricity
+                sequence_behavior[seq] = euclidean_distance(seq, self.global_peak)
 
         for index in range(self.pop_size):
             # Find each sequence's k-nearest neighbors in the population and archive combined.
@@ -396,7 +418,8 @@ class Population:
                 compare_seq = arr_to_str(compare_pop[n])
                 distances_to_compare_pop.append(
                     #abs(sequence_behavior[seq]['polarity'] - sequence_behavior[compare_seq]['polarity'])
-                    get_distance(seq, compare_seq, sequence_behavior)
+                    #get_distance(seq, compare_seq)
+                    abs(sequence_behavior[seq]['pol'] - sequence_behavior[compare_seq]['pol'])
                 )
             distances_to_compare_pop.sort() #  small -> large distances
             #print(distances_to_compare_pop[0:10])

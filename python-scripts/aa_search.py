@@ -63,7 +63,8 @@ pep_len = len(df.at[0, 'Variants'])
 fitness_peak = df[df['Fitness'] == df['Fitness'].max()]
 fitness_peak = fitness_peak.reset_index()
 fitness_peak_value = fitness_peak.at[0, 'Fitness']
-logging.info("fitness peak\n%s", fitness_peak)
+fitness_peak_hap = fitness_peak.at[0, 'Variants']
+logging.info("fitness peak:\t%s\t%s", fitness_peak_hap, fitness_peak_value)
 
 # Get aa sets for each position
 aa_states = {}
@@ -77,7 +78,8 @@ p = Population(pop_size=args.pop_size,
                pep_len=pep_len,
                aa_sets=aa_states,
                land=df,
-               rng_seed=args.rng_seed
+               rng_seed=args.rng_seed,
+               peak = fitness_peak_hap
                )
 
 # Fitness file (elite.tsv): each generation's 10 highest fitness strings and fitness.
@@ -91,7 +93,8 @@ for n in range(args.generation):
     # elite.write(f"{tagRun}\t{p.generation}\t{p.elite1[1]}\t{p.elite1[2]}\t{args.algorithm}\n")
 
     # End the simulation when a sequence reaches the peak.
-    if p.elite1[2] == fitness_peak_value:
+    #if p.elite1[2] == fitness_peak_value:
+    if p.elite1[1] == fitness_peak_hap:
         break
 
     p.mutate(mut_rate=args.mutation_rate)
