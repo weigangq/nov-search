@@ -37,6 +37,10 @@ parser.add_argument('-alg', '--algorithm', choices=['1', '2', '3'], default='1',
                          '2. Novelty search: Selects the most novel individuals. '
                          '3. Combo search: Combines fitness and novelty.')
 
+parser.add_argument('-beh', '--behavior', choices=['raw', 'norm'], default='raw',
+                    help='Behavior measure of haplotypes: raw: raw distance (Euclidean pol, hydro, and iso) to peak '
+                         'norm: normalized distance to peak (pol, hydro, and iso diffs equally weighted to 0-1)')
+
 parser.add_argument('-n', '--nearest_neighbors', type=int, default=10,
                     help='Number of nearest neighbors to use in novelty search. Default = 10.')
 
@@ -52,11 +56,15 @@ parser.add_argument('-w', '--weight', type=float, default=0.5,
                     help='Weight for the combo search algorithm. Weight value is between 0 and 1. '
                          'Closer to 1 means more bias towards novelty. Default = 0.5.')
 
+parser.add_argument('-out', action = 'store_true', help='Export landscape file')
+
 args = parser.parse_args()
 tagRun = args.tag
 logging.basicConfig(level=logging.DEBUG)
 
 df = pd.read_csv(args.landscape_file, sep="\t")
+recs = df.to_dict('records')
+#print(recs[0:10])
 pep_len = len(df.at[0, 'Variants'])
 
 # Find the variant with the highest fitness.
@@ -72,7 +80,30 @@ for pos in range(pep_len):
     aa_states[pos] = list(np.unique([x[pos] for x in df['Variants']]))
 
 df.set_index('Variants', inplace=True)
+#print(df.head)
 
+# for BD1: raw distances as behavior does not improves novelty, but show combo synergy
+# for NA1: replicates NK results: both novelty and combo improved over objective
+def add_behavior_raw(seq):
+    dist = euclidean_distance(seq, fitness_peak_hap)
+    return dist['all']
+
+# normalized distances as behavior improves novelty, but no combo synergy
+# for NA1: replicates NK results: both novelty and combo improved over objective
+def add_behavior_norm(seq):
+    dist = euclidean_distance(seq, fitness_peak_hap)
+    return dist['all_norm']
+
+# write out behavior scores:
+if args.out:
+    for rec in recs:
+        rec['beh_raw'] = add_behavior_raw(rec['Variants'])
+        rec['beh_norm'] = add_behavior_norm(rec['Variants'])
+
+    dfOut = pd.DataFrame.from_dict(recs)
+    outfile = args.landscape_file + ".land"
+    dfOut.to_csv(outfile, sep = "\t")
+    sys.exit()
 
 p = Population(pop_size=args.pop_size,
                pep_len=pep_len,

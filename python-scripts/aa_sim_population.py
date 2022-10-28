@@ -87,6 +87,7 @@ def get_distance(seq1: str, seq2: str) -> float:
     #print(d)
     return d
 
+# defines behavior
 def euclidean_distance(seq1: str, seq2: str) -> dict:
     pep1 = list(seq1)
     pep2 = list(seq2)
@@ -96,6 +97,10 @@ def euclidean_distance(seq1: str, seq2: str) -> dict:
     dists['hydro'] = 0
     dists['iso'] = 0
     dists['all'] = 0
+    dists['pol_norm'] = 0
+    dists['hydro_norm'] = 0
+    dists['iso_norm'] = 0
+    dists['all_norm'] = 0
     for i in range(len(seq1)):
         aa_pair = [pep1[i], pep2[i]]
         aa_pair.sort()
@@ -103,12 +108,21 @@ def euclidean_distance(seq1: str, seq2: str) -> dict:
         aa2 = aa_pair[1]
         key = (aa1, aa2)
         # use normalized diff to weight the three values equally
-        dists['pol'] +=  pol_norm[key]['norm'] ** 2
-        dists['hydro'] += hyd_norm[key]['norm']  ** 2
-        dists['iso'] += iso_norm[key]['norm']  ** 2
+        dists['pol_norm'] +=  pol_norm[key]['norm'] 
+        dists['hydro_norm'] += hyd_norm[key]['norm']
+        dists['iso_norm'] += iso_norm[key]['norm']
+        dists['all_norm'] += dists['pol_norm'] + dists['hydro_norm'] + dists['iso_norm'] # not good
         # not normalized:
-        #dists['iso'] += (iso[aa1] - iso[aa2]) ** 2 
-        dists['all'] += dists['pol'] + dists['hydro'] + dists['iso']
+        dists['pol'] += (polarity[aa1] - polarity[aa2]) ** 2 # good
+        dists['hydro'] += (hydropathy[aa1] - hydropathy[aa2]) ** 2 
+        dists['iso'] += (iso[aa1] - iso[aa2]) ** 2 
+        dists['all'] += dists['pol'] + dists['hydro'] + dists['iso'] # this is better!!!!
+
+    for key in dists:
+        if key in ['pol', 'hydro', 'iso', 'all']:
+            dists[key] = np.sqrt(dists[key])/len(pep1)
+        else:
+            dists[key] = dists[key]/len(pep1)            
     return dists
 #######################################################
 sequence_behavior = {}
@@ -426,7 +440,7 @@ class Population:
                 distances_to_compare_pop.append(
                     #abs(sequence_behavior[seq]['polarity'] - sequence_behavior[compare_seq]['polarity'])
                     #get_distance(seq, compare_seq)
-                    abs(sequence_behavior[seq]['pol'] - sequence_behavior[compare_seq]['pol'])
+                    abs(sequence_behavior[seq]['all'] - sequence_behavior[compare_seq]['all'])
                 )
             distances_to_compare_pop.sort() #  small -> large distances
             #print(distances_to_compare_pop[0:10])
