@@ -2,7 +2,9 @@
 import numpy as np
 import pandas as pd
 import sys
+import blosum as bl
 
+aa_matrix = bl.BLOSUM(62)
 ################################################################
 # AA distances
 # List of all possible letters representing amino acids, sorted
@@ -101,6 +103,7 @@ def euclidean_distance(seq1: str, seq2: str) -> dict:
     dists['hydro_norm'] = 0
     dists['iso_norm'] = 0
     dists['all_norm'] = 0
+    dists['blosum'] = 0
     for i in range(len(seq1)):
         aa_pair = [pep1[i], pep2[i]]
         aa_pair.sort()
@@ -117,9 +120,14 @@ def euclidean_distance(seq1: str, seq2: str) -> dict:
         dists['hydro'] += (hydropathy[aa1] - hydropathy[aa2]) ** 2 
         dists['iso'] += (iso[aa1] - iso[aa2]) ** 2 
         dists['all'] += dists['pol'] + dists['hydro'] + dists['iso'] # this is better!!!!
+        
+        # blosum62: d=exp(-s), not enough distance for single-aa variants
+        dists['blosum'] +=  aa_matrix[aa1+aa2]
 
     for key in dists:
-        if key in ['pol', 'hydro', 'iso', 'all']:
+        if key == 'blosum':
+            dists[key] = np.exp(-dists[key]) # score to distance
+        elif key in ['pol', 'hydro', 'iso', 'all']:
             dists[key] = np.sqrt(dists[key])/len(pep1)
         else:
             dists[key] = dists[key]/len(pep1)            
@@ -340,7 +348,7 @@ class Population:
         self.replace_pop()
         return
 
-    def population_novelty(self, nearest_neighbors: int = 10, archive_method: int = 1, prob: float = 0.10) -> list:
+    def population_novelty(self, nearest_neighbors: int = 10, archive_method: int = 1, prob: float = 0.10, behave: str = 'all') -> list:
         """
         Evaluates each sequence's novelty and updates the archive. Then returns a list containing only the novelty
         values of the sequences in the population.
@@ -440,7 +448,7 @@ class Population:
                 distances_to_compare_pop.append(
                     #abs(sequence_behavior[seq]['polarity'] - sequence_behavior[compare_seq]['polarity'])
                     #get_distance(seq, compare_seq)
-                    abs(sequence_behavior[seq]['all'] - sequence_behavior[compare_seq]['all'])
+                    abs(sequence_behavior[seq][behave] - sequence_behavior[compare_seq][behave])
                 )
             distances_to_compare_pop.sort() #  small -> large distances
             #print(distances_to_compare_pop[0:10])
@@ -478,19 +486,19 @@ class Population:
         # print(pop_novelty)
         return pop_novelty
 
-    def novelty_selection(self, nearest_neighbors: int = 10, archive_method: int = 1, prob: float = 0.10) -> None:
+    def novelty_selection(self, nearest_neighbors: int = 10, archive_method: int = 1, prob: float = 0.10, behave: str = 'all') -> None:
         """
         Selects the top 10 sequences by novelty value, then replaces the population with the elites (most novel).
         """
         pop_novelty = self.population_novelty(nearest_neighbors=nearest_neighbors, archive_method=archive_method,
-                                              prob=prob)
+                                              prob=prob, behave = behave)
         self.elite = get_elites(self.population, pop_novelty, self.land)
         self.elite1 = max(self.elite, key=lambda x: x[2])
         self.replace_pop()
         return
 
     def population_combo(self, weight: float = 0.5, nearest_neighbors: int = 10, archive_method: int = 1,
-                         prob: float = 0.10) -> list:
+                         prob: float = 0.10, behave: str = 'all') -> list:
         """
         Evaluate the sequences in a population based on both fitness and novelty.
         This combination score is calculated by score(i) = (1 − ρ) · fit(i) + ρ · nov(i), where ρ in [0, 1] controls
@@ -522,12 +530,12 @@ class Population:
         return pop_combo
 
     def combo_selection(self, weight: float = 0.5, nearest_neighbors: int = 10, archive_method: int = 1,
-                        prob: float = 0.10) -> None:
+                        prob: float = 0.10, behave = 'all') -> None:
         """
         Selects the top 10 sequences by combo value, then replaces the population with the elites.
         """
         pop_combo = self.population_combo(weight=weight, nearest_neighbors=nearest_neighbors,
-                                          archive_method=archive_method, prob=prob)
+                                          archive_method=archive_method, prob=prob, behave=behave)
         self.elite = get_elites(self.population, pop_combo, self.land)
         self.elite1 = max(self.elite, key=lambda x: x[2])
         self.replace_pop()

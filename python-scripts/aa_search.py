@@ -37,7 +37,7 @@ parser.add_argument('-alg', '--algorithm', choices=['1', '2', '3'], default='1',
                          '2. Novelty search: Selects the most novel individuals. '
                          '3. Combo search: Combines fitness and novelty.')
 
-parser.add_argument('-beh', '--behavior', choices=['raw', 'norm'], default='raw',
+parser.add_argument('-beh', '--behavior', choices=['all', 'all_norm', 'blosum'], default='all',
                     help='Behavior measure of haplotypes: raw: raw distance (Euclidean pol, hydro, and iso) to peak '
                          'norm: normalized distance to peak (pol, hydro, and iso diffs equally weighted to 0-1)')
 
@@ -72,7 +72,7 @@ fitness_peak = df[df['Fitness'] == df['Fitness'].max()]
 fitness_peak = fitness_peak.reset_index()
 fitness_peak_value = fitness_peak.at[0, 'Fitness']
 fitness_peak_hap = fitness_peak.at[0, 'Variants']
-logging.info("fitness peak:\t%s\t%s", fitness_peak_hap, fitness_peak_value)
+logging.info("fitness peak:\t%s\t%s\tbehavior:%s", fitness_peak_hap, round(fitness_peak_value,6), args.behavior)
 
 # Get aa sets for each position
 aa_states = {}
@@ -82,23 +82,36 @@ for pos in range(pep_len):
 df.set_index('Variants', inplace=True)
 #print(df.head)
 
-# for BD1: raw distances as behavior does not improves novelty, but show combo synergy
-# for NA1: replicates NK results: both novelty and combo improved over objective
+# all or all_norm works both well for novelty
+# blosum not good
 def add_behavior_raw(seq):
     dist = euclidean_distance(seq, fitness_peak_hap)
-    return dist['all']
+    return round(dist['all'],4)
 
-# normalized distances as behavior improves novelty, but no combo synergy
-# for NA1: replicates NK results: both novelty and combo improved over objective
 def add_behavior_norm(seq):
     dist = euclidean_distance(seq, fitness_peak_hap)
-    return dist['all_norm']
+    return round(dist['all_norm'],4)
+
+def add_behavior_pol(seq):
+    dist = euclidean_distance(seq, fitness_peak_hap)
+    return round(dist['pol'],4)
+
+def add_behavior_pol_norm(seq):
+    dist = euclidean_distance(seq, fitness_peak_hap)
+    return round(dist['pol_norm'],4)
+
+def add_behavior_blosum(seq):
+    dist = euclidean_distance(seq, fitness_peak_hap)
+    return round(dist['blosum'],4)
 
 # write out behavior scores:
 if args.out:
     for rec in recs:
         rec['beh_raw'] = add_behavior_raw(rec['Variants'])
         rec['beh_norm'] = add_behavior_norm(rec['Variants'])
+        rec['beh_pol'] = add_behavior_pol(rec['Variants'])
+        rec['beh_pol_norm'] = add_behavior_pol_norm(rec['Variants'])
+        rec['beh_blosum'] = add_behavior_blosum(rec['Variants'])
 
     dfOut = pd.DataFrame.from_dict(recs)
     outfile = args.landscape_file + ".land"
@@ -135,11 +148,11 @@ for n in range(args.generation):
 
     if args.algorithm == '2':
         p.novelty_selection(nearest_neighbors=args.nearest_neighbors, archive_method=args.archive_method,
-                            prob=args.prob_arch)
+                            prob=args.prob_arch, behave=args.behavior)
 
     if args.algorithm == '3':
         p.combo_selection(weight=args.weight, nearest_neighbors=args.nearest_neighbors,
-                          archive_method=args.archive_method, prob=args.prob_arch)
+                          archive_method=args.archive_method, prob=args.prob_arch, behave = args.behavior)
 
 logging.info("Done")
 #elite.close()
