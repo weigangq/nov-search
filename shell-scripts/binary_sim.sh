@@ -7,14 +7,16 @@
 exe_dir="/mnt/c/Users/weiga/Dropbox/nov-search/python-scripts"
 out_file=$(basename $1 .tsv)
 land_file=$1
-for alg in {1..3}; do
-	for trial in {1..30}; do
+alg=3
+#for alg in {1}; do
+	for trial in {1..50}; do
 		start=$(date +%s.%N)
 		#touch ${out_file}.log
-		echo -ne "$land_file\t$alg\t$trial\t" >> ${out_file}.log 
-		python ${exe_dir}/binary_search.py -t alg$alg-trial$trial -land $land_file -alg $alg 2> /dev/null >> ${out_file}.search
-		end=$(date +%s.%N)
-		runtime=$( echo "$end - $start" | bc -l )
-		echo $runtime >> ${out_file}.log
-	done
+		echo -ne "$land_file\t$alg\t$trial\t..." 
+		python ${exe_dir}/binary_search.py -t alg$alg-trial$trial -land $land_file -alg $alg 2> /dev/null >> ${out_file}.${alg}.search
+		echo "done"
+#		end=$(date +%s.%N)
+#		runtime=$( echo "$end - $start" | bc -l )
+#		echo $runtime >> ${out_file}.log
+#	done
 done
