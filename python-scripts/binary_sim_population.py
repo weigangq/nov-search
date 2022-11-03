@@ -4,7 +4,7 @@ import pandas as pd
 import sys
 
 # Record of sequence behavior
-sequence_behavior = {}
+#sequence_= {}
 
 
 def arr_to_str(nparray: np.ndarray) -> str:
@@ -293,35 +293,36 @@ class Population:
         counter = 0
 
         # Calculate behavior of population + archive.
-        global sequence_behavior
+        # global sequence_behavior
         for index in range(self.pop_size):
             # Check to see if the sequence's behavior was previously calculated. If not, then calculate the
             # sequence's polarity and hydropathy and record values.
-            seq = arr_to_str(self.population[index])
-            if seq in sequence_behavior:
-                continue
-            else:
-                # Calculate behavior.
-                # For now, behavior = hamming distance from global peak.
-                # behavior = {}
-                # hamming = np.sum(np.absolute(self.population[index] - str_to_arr(self.global_peak.at[0, 'haplotype'])))
-                # behavior['peak_hamming'] = hamming
-                # sequence_behavior[seq] = behavior
+#             seq = arr_to_str(self.population[index])
+#             if seq in sequence_behavior:
+#                 continue
+#             else:
+#                 # Calculate behavior.
+#                 # For now, behavior = hamming distance from global peak.
+#                 # behavior = {}
+#                 # hamming = np.sum(np.absolute(self.population[index] - str_to_arr(self.global_peak.at[0, 'haplotype'])))
+#                 # behavior['peak_hamming'] = hamming
+#                 # sequence_behavior[seq] = behavior
                 
-                # try seq itself as behavior, a kind of binary street address
-                sequence_behavior[seq] = self.population[index]
+#                 # try seq itself as behavior, a kind of binary street address
+#                 sequence_behavior[seq] = self.population[index]
 
-        for index in range(self.pop_size):
+#        for index in range(self.pop_size):
             # Find each sequence's k-nearest neighbors in the population and archive combined.
-            seq = arr_to_str(self.population[index])
+            # seq = arr_to_str(self.population[index])
             compare_pop = np.concatenate((self.archive, np.delete(self.population, index, 0)), axis=0)
             distances_to_compare_pop = []
             for n in range(compare_pop.shape[0]):
                 # Distance is evaluated by finding the difference in the hamming distances from the peak.
-                compare_seq = arr_to_str(compare_pop[n])
+                #compare_seq = arr_to_str(compare_pop[n])
                 distances_to_compare_pop.append(
                     #abs(sequence_behavior[seq]['peak_hamming'] - sequence_behavior[compare_seq]['peak_hamming'])
-                    np.sum(np.absolute(sequence_behavior[seq] - compare_pop[n])) # hamming distance
+                    # np.sum(np.absolute(sequence_behavior[seq] - compare_pop[n])) # hamming distance
+                    np.sum(np.absolute(self.population[index] - compare_pop[n])) # hamming distance
                 )
             distances_to_compare_pop.sort()
 

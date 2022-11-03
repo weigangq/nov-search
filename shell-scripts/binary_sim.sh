@@ -7,7 +7,7 @@
 exe_dir="/mnt/c/Users/weiga/Dropbox/nov-search/python-scripts"
 out_file=$(basename $1 .tsv)
 land_file=$1
-alg=3
+alg=2
 #for alg in {1}; do
 	for trial in {1..50}; do
 		start=$(date +%s.%N)

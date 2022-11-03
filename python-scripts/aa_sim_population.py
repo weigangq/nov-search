@@ -114,7 +114,7 @@ def euclidean_distance(seq1: str, seq2: str) -> dict:
         dists['pol_norm'] +=  pol_norm[key]['norm'] 
         dists['hydro_norm'] += hyd_norm[key]['norm']
         dists['iso_norm'] += iso_norm[key]['norm']
-        dists['all_norm'] += dists['pol_norm'] + dists['hydro_norm'] + dists['iso_norm'] # not good
+        dists['all_norm'] += dists['pol_norm'] + dists['hydro_norm'] + dists['iso_norm'] 
         # not normalized:
         dists['pol'] += (polarity[aa1] - polarity[aa2]) ** 2 # good
         dists['hydro'] += (hydropathy[aa1] - hydropathy[aa2]) ** 2 
@@ -131,6 +131,50 @@ def euclidean_distance(seq1: str, seq2: str) -> dict:
             dists[key] = np.sqrt(dists[key])/len(pep1)
         else:
             dists[key] = dists[key]/len(pep1)            
+    return dists
+
+def euclidean_distance_arr(seq1: np.array, seq2: np.array) -> dict:
+    #pep1 = list(seq1)
+    #pep2 = list(seq2)
+    len_pep = len(seq1)
+    
+    dists = {}
+    dists['pol'] = 0
+    dists['hydro'] = 0
+    dists['iso'] = 0
+    dists['all'] = 0
+    dists['pol_norm'] = 0
+    dists['hydro_norm'] = 0
+    dists['iso_norm'] = 0
+    dists['all_norm'] = 0
+    dists['blosum'] = 0
+    for i in range(len(seq1)):
+        aa_pair = [seq1[i], seq2[i]]
+        aa_pair.sort()
+        aa1 = aa_pair[0]
+        aa2 = aa_pair[1]
+        key = (aa1, aa2)
+        # use normalized diff to weight the three values equally
+        dists['pol_norm'] +=  pol_norm[key]['norm'] 
+        dists['hydro_norm'] += hyd_norm[key]['norm']
+        dists['iso_norm'] += iso_norm[key]['norm']
+        dists['all_norm'] += dists['pol_norm'] + dists['hydro_norm'] + dists['iso_norm'] 
+        # not normalized:
+        dists['pol'] += (polarity[aa1] - polarity[aa2]) ** 2 # good
+        dists['hydro'] += (hydropathy[aa1] - hydropathy[aa2]) ** 2 
+        dists['iso'] += (iso[aa1] - iso[aa2]) ** 2 
+        dists['all'] += dists['pol'] + dists['hydro'] + dists['iso'] # this is better!!!!
+        
+        # blosum62: d=exp(-s), not enough distance for single-aa variants
+        dists['blosum'] +=  aa_matrix[aa1+aa2]
+
+    for key in dists:
+        if key == 'blosum':
+            dists[key] = np.exp(-dists[key]) # score to distance
+        elif key in ['pol', 'hydro', 'iso', 'all']:
+            dists[key] = np.sqrt(dists[key])/len_pep
+        else:
+            dists[key] = dists[key]/len_pep            
     return dists
 #######################################################
 sequence_behavior = {}
@@ -415,40 +459,42 @@ class Population:
         counter = 0
 
         # Calculate behavior of population + archive.
-        global sequence_behavior
-        for index in range(self.pop_size):
-            # Check to see if the sequence's behavior was previously calculated. If not, then calculate the
-            # sequence's polarity and hydropathy and record values.
-            seq = arr_to_str(self.population[index])
-            if seq in sequence_behavior:
-                continue
-            else:
-                behavior = {}
-                '''
-                polarity_value, hydropathy_value, iso_value = 0, 0, 0
-                for residue in self.population[index]:
-                    polarity_value += polarity[residue]
-                    hydropathy_value += hydropathy[residue]
-                    iso_value += iso[residue]
-                behavior['polarity'] = polarity_value
-                behavior['hydropathy'] = hydropathy_value
-                behavior['iso'] = iso_value
-                '''
-                # behavior includes euclidean distances to the global peak (based on polarity, hydropathy, and isoelectricity)
-                sequence_behavior[seq] = euclidean_distance(seq, self.global_peak)
+        # global sequence_behavior
+#         for index in range(self.pop_size):
+#             # Check to see if the sequence's behavior was previously calculated. If not, then calculate the
+#             # sequence's polarity and hydropathy and record values.
+#             seq = arr_to_str(self.population[index])
+#             if seq in sequence_behavior:
+#                 continue
+#             else:
+#                 behavior = {}
+#                 '''
+#                 polarity_value, hydropathy_value, iso_value = 0, 0, 0
+#                 for residue in self.population[index]:
+#                     polarity_value += polarity[residue]
+#                     hydropathy_value += hydropathy[residue]
+#                     iso_value += iso[residue]
+#                 behavior['polarity'] = polarity_value
+#                 behavior['hydropathy'] = hydropathy_value
+#                 behavior['iso'] = iso_value
+#                 '''
+#                 # behavior includes euclidean distances to the global peak (based on polarity, hydropathy, and isoelectricity)
+#                 sequence_behavior[seq] = euclidean_distance(seq, self.global_peak)
 
         for index in range(self.pop_size):
             # Find each sequence's k-nearest neighbors in the population and archive combined.
-            seq = arr_to_str(self.population[index])
+            # seq = arr_to_str(self.population[index])
             compare_pop = np.concatenate((self.archive, np.delete(self.population, index, 0)), axis=0)
             distances_to_compare_pop = []
             for n in range(compare_pop.shape[0]):
                 # Distance is evaluated by normalized chem and hamming distances (see top)
-                compare_seq = arr_to_str(compare_pop[n])
+                #compare_seq = arr_to_str(compare_pop[n])
                 distances_to_compare_pop.append(
                     #abs(sequence_behavior[seq]['polarity'] - sequence_behavior[compare_seq]['polarity'])
                     #get_distance(seq, compare_seq)
-                    abs(sequence_behavior[seq][behave] - sequence_behavior[compare_seq][behave])
+                    # abs(sequence_behavior[seq][behave] - sequence_behavior[compare_seq][behave])
+                    # unbiased behavir: Euclidean coordiate of the seq itself, not dist to the peak
+                    euclidean_distance_arr(self.population[index], compare_pop[n])[behave]
                 )
             distances_to_compare_pop.sort() #  small -> large distances
             #print(distances_to_compare_pop[0:10])
