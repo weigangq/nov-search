@@ -72,29 +72,6 @@ hyd_norm = normalize_dict(hydro_dist, 0, 1)
 iso_norm = normalize_dict(iso_dist, 0, 1)
 
 
-def get_behavior(sequence: str) -> dict:
-    """
-    Calculate the behavior of an amino acid sequence. Behavior is based on polarity, hydropathy, isoelectric index,
-    a combination of the 3 previous values, the normalized distances of the previous 4 values, and the blosum matrix.
-
-    Args:
-        sequence: String of amino acid residues.
-
-    Returns:
-        dict
-    """
-    behavior = {'pol': 0, 'hydro': 0, 'iso': 0}
-    for residue in sequence:
-        behavior['pol'] += polarity[residue]
-        behavior['hydro'] += hydropathy[residue]
-        behavior['iso'] += iso[residue]
-    return behavior
-
-
-# Record of the behaviors of all encountered sequences.
-sequence_behavior = {}
-
-
 def get_distance(seq1: str, seq2: str, metric: str = 'all') -> float:
     """
     Calculate the euclidean distance between two amino acid sequences with the same length. Distance is based on
@@ -110,36 +87,41 @@ def get_distance(seq1: str, seq2: str, metric: str = 'all') -> float:
     Returns:
         float
     """
-    global sequence_behavior
-    if metric in ['pol', 'hydro', 'iso']:
-        dist = abs(sequence_behavior[seq1][metric] - sequence_behavior[seq2][metric])
 
-    elif metric == 'all':
-        dist = sqrt(
-                    (sequence_behavior[seq1]['pol'] - sequence_behavior[seq2]['pol']) ** 2 +
-                    (sequence_behavior[seq1]['hydro'] - sequence_behavior[seq2]['hydro']) ** 2 +
-                    (sequence_behavior[seq1]['iso'] - sequence_behavior[seq2]['iso']) ** 2
-        )
-
-    elif metric in ['pol_norm', 'hydro_norm', 'iso_norm']:
+    if metric in ['pol', 'hydro', 'iso', 'pol_norm', 'hydro_norm', 'iso_norm']:
         dist = 0
         for a in range(len(seq1)):
             key = tuple(sorted([seq1[a], seq2[a]]))
-            if metric == 'pol_norm':
+            if metric == 'pol':
+                dist += pol_norm[key]['val']
+            elif metric == 'hydro':
+                dist += hyd_norm[key]['val']
+            elif metric == 'iso':
+                dist += iso_norm[key]['val']
+            elif metric == 'pol_norm':
                 dist += pol_norm[key]['norm']
             elif metric == 'hydro_norm':
                 dist += hyd_norm[key]['norm']
             elif metric == 'iso_norm':
                 dist += iso_norm[key]['norm']
 
-    elif metric == 'all_norm':
-        distances = {'pol': 0, 'hydro': 0, 'iso': 0}
+    elif metric == 'all':
+        distances = [0, 0, 0]
         for a in range(len(seq1)):
             key = tuple(sorted([seq1[a], seq2[a]]))
-            distances['pol'] += pol_norm[key]['norm']
-            distances['hydro'] += hyd_norm[key]['norm']
-            distances['iso'] += iso_norm[key]['norm']
-        dist = sqrt(distances['pol'] ** 2 + distances['hydro'] ** 2 + distances['iso'] ** 2)
+            distances[0] += pol_norm[key]['val']
+            distances[1] += hyd_norm[key]['val']
+            distances[2] += iso_norm[key]['val']
+        dist = sqrt(distances[0] ** 2 + distances[1] ** 2 + distances[2] ** 2)
+
+    elif metric == 'all_norm':
+        distances = [0, 0, 0]
+        for a in range(len(seq1)):
+            key = tuple(sorted([seq1[a], seq2[a]]))
+            distances[0] += pol_norm[key]['norm']
+            distances[1] += hyd_norm[key]['norm']
+            distances[2] += iso_norm[key]['norm']
+        dist = sqrt(distances[0] ** 2 + distances[1] ** 2 + distances[2] ** 2)
 
     elif metric == 'blosum':
         dist = 0
@@ -234,9 +216,9 @@ def get_elites(pop: list, population_metrics: list, land: pd.DataFrame) -> list:
         list of 10 * [Sequence's index in population, Sequence string, Fitness]
     """
     # Temporary elite list containing [Sequence's population index, Metric]
-    # replace the smallest one, iteratively
-    # metric is either fitness, sparsity, or a weighted sum of the two
-    # regardless, get the top 10 highest
+    # Replace the smallest one, iteratively to get the top 10 highest.
+    # Metric is either fitness, sparsity, or a weighted sum of the two.
+    
     elite = [[n, population_metrics[n]] for n in range(10)]
     elite_min = min(elite, key=lambda x: x[1])
     for index in range(10, len(pop)):
@@ -246,6 +228,7 @@ def get_elites(pop: list, population_metrics: list, land: pd.DataFrame) -> list:
             elite_min = min(elite, key=lambda x: x[1])
 
     elite_fitness = [[e[0], list_to_str(pop[e[0]]), aa_fitness(pop[e[0]], land)] for e in elite]
+
     return elite_fitness
 
 
@@ -436,19 +419,6 @@ class Population:
         num_eval = 0
         counter = 0
 
-        # Calculate behavior of population + archive.
-        global sequence_behavior
-        if behave != 'blosum':
-            for index in range(self.pop_size):
-                # Check to see if the sequence's behavior was previously calculated. If not, then calculate the
-                # sequence's behavior and record the value.
-                seq = list_to_str(self.population[index])
-                if seq in sequence_behavior:
-                    continue
-                else:
-                    # Behavior is based on polarity, hydropathy, and isoelectricity.
-                    sequence_behavior[seq] = get_behavior(seq)
-
         for index in range(self.pop_size):
             # Find each sequence's k-nearest neighbors in the population and archive combined.
             seq = list_to_str(self.population[index])
@@ -547,3 +517,4 @@ class Population:
         self.elite1 = max(self.elite, key=lambda x: x[2])
         self.replace_pop()
         return
+        

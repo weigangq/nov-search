@@ -17,7 +17,7 @@ parser.add_argument('-t', '--tag', default='test',
 parser.add_argument('-land', '--landscape_file', required=True,
                     help='landscape file, containing tab-sep 2 columns, named as "Variants" and "Fitness". Required')
 
-parser.add_argument('-s', '--rng_seed', default=None,
+parser.add_argument('-s', '--rng_seed', default=None, type=int,
                     help='RNG seed to generate reproducible rng results. Default = None (i.e., unpredictable rng.')
 
 parser.add_argument('-pop', '--pop_size', type=int, default=100,
