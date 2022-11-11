@@ -431,7 +431,9 @@ class Population:
 
             # Calculate the sequence's average distance to the k-nearest neighbors (i.e., the sparsity).
             sparsity = 0
-            for dist in distances_to_compare_pop[:nearest_neighbors]:
+            for dist in distances_to_compare_pop[:nearest_neighbors+1]:
+                # Add 1 to nearest neighbors because distances_to_compare_pop contains the amino acid's distance to
+                # itself, which is 0.
                 sparsity += dist
             pop_novelty.append(sparsity / nearest_neighbors)
 
