@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-from aa_sim_population import *
+import pyximport; pyximport.install()
+from aa_sim_population_cython import *
+#from aa_sim_population import *
 import argparse
 import numpy as np
 import pandas as pd
