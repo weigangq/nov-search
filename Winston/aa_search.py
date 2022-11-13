@@ -1,11 +1,9 @@
-#!/usr/bin/env python
-import pyximport; pyximport.install()
+import pyximport; pyximport.install(language_level=3)
 from aa_sim_population_cython import *
 #from aa_sim_population import *
 import argparse
 import numpy as np
 import pandas as pd
-
 parser = argparse.ArgumentParser(
     description='Simulated adaptive walks on a fitness landscape of peptides. Haplotypes should be combinatorially '
                 'complete, although not necessarily for all 20 AAs. For example, 1st site could have 2 possible AAs, '

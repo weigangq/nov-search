@@ -109,19 +109,19 @@ def get_distance(seq1: str, seq2: str, metric: str = 'all') -> float:
         distances = [0, 0, 0]
         for a in range(len(seq1)):
             key = tuple(sorted([seq1[a], seq2[a]]))
-            distances[0] += pol_norm[key]['val']
-            distances[1] += hyd_norm[key]['val']
-            distances[2] += iso_norm[key]['val']
-        dist = sqrt(distances[0] ** 2 + distances[1] ** 2 + distances[2] ** 2)
+            distances[0] += pol_norm[key]['val'] ** 2
+            distances[1] += hyd_norm[key]['val'] ** 2
+            distances[2] += iso_norm[key]['val'] ** 2
+        dist = sqrt(distances[0] + distances[1] + distances[2])
 
     elif metric == 'all_norm':
         distances = [0, 0, 0]
         for a in range(len(seq1)):
             key = tuple(sorted([seq1[a], seq2[a]]))
-            distances[0] += pol_norm[key]['norm']
-            distances[1] += hyd_norm[key]['norm']
-            distances[2] += iso_norm[key]['norm']
-        dist = sqrt(distances[0] ** 2 + distances[1] ** 2 + distances[2] ** 2)
+            distances[0] += pol_norm[key]['norm'] ** 2
+            distances[1] += hyd_norm[key]['norm'] ** 2
+            distances[2] += iso_norm[key]['norm'] ** 2
+        dist = sqrt(distances[0] + distances[1] + distances[2])
 
     elif metric == 'blosum':
         dist = 0

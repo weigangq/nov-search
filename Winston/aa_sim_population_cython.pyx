@@ -1,9 +1,8 @@
-#!/usr/bin/env python
 import numpy as np
 import pandas as pd
 import blosum as bl
 import cython
-from libc.math cimport sqrt, pow
+cimport libc.math
 
 aa_matrix = bl.BLOSUM(62)
 
@@ -107,18 +106,18 @@ def get_distance(seq1: str, seq2: str, metric: str = 'all') -> float:
     elif metric == 'all':
         for a in range(len(seq1)):
             key = tuple(sorted([seq1[a], seq2[a]]))
-            p += pol_norm[key]['val']
-            h += hyd_norm[key]['val']
-            i += iso_norm[key]['val']
-        dist = sqrt(pow(p, 2) + pow(h, 2) + pow(i, 2))
+            p += libc.math.pow(pol_norm[key]['val'], 2)
+            h += libc.math.pow(hyd_norm[key]['val'], 2)
+            i += libc.math.pow(iso_norm[key]['val'], 2)
+        dist = libc.math.sqrt(p + h + i)
 
     elif metric == 'all_norm':
         for a in range(len(seq1)):
             key = tuple(sorted([seq1[a], seq2[a]]))
-            p += pol_norm[key]['val']
-            h += hyd_norm[key]['val']
-            i += iso_norm[key]['val']
-        dist = sqrt(pow(p, 2) + pow(h, 2) + pow(i, 2))
+            p += libc.math.pow(pol_norm[key]['norm'], 2)
+            h += libc.math.pow(hyd_norm[key]['norm'], 2)
+            i += libc.math.pow(iso_norm[key]['norm'], 2)
+        dist = libc.math.sqrt(p + h + i)
 
     elif metric == 'blosum':
         for a in range(len(seq1)):
