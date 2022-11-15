@@ -67,7 +67,8 @@ hyd_norm = normalize_dict(hydro_dist, 0, 1)
 iso_norm = normalize_dict(iso_dist, 0, 1)
 
 
-def get_distance(seq1: str, seq2: str, metric: str = 'all') -> float:
+#def get_distance(seq1: str, seq2: str, metric: str = 'all') -> float:
+cpdef get_distance(seq1, seq2, metric):
     """
     Calculate the euclidean distance between two amino acid sequences with the same length. Distance is based on
     polarity, hydropathy, isoelectric index, a combination of the 3 previous values, the normalized distances of the
@@ -201,10 +202,11 @@ def list_min(values: list, size: int = 10) -> list:
     Returns: list
     """
     cdef float highest
+    cdef list bottom
     
     bottom = values[:size]
     highest = max(bottom)
-    for n in range(10, len(values)):
+    for n in range(size, len(values)):
         if values[n] < highest:
             bottom.remove(highest)
             bottom.append(values[n])
@@ -426,7 +428,7 @@ class Population:
         Returns:
             list
         """
-        pop_novelty = []
+        cdef list pop_novelty = []
 
         # Parameters for novelty search method 2
         cdef float threshold = 10
@@ -437,7 +439,8 @@ class Population:
         cdef int num_eval = 0
         cdef int counter = 0
 
-        cdef sparsity
+        cdef float sparsity
+        cdef list compare_pop, distances_to_compare_pop
 
         for index in range(self.pop_size):
             # Find each sequence's k-nearest neighbors in the population and archive combined.
