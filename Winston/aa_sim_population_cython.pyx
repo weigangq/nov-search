@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import blosum as bl
 import cython
-cimport libc.math
+cimport libc.math as cmath
 
 aa_matrix = bl.BLOSUM(62)
 
@@ -107,18 +107,18 @@ cpdef get_distance(seq1, seq2, metric):
     elif metric == 'all':
         for a in range(len(seq1)):
             key = tuple(sorted([seq1[a], seq2[a]]))
-            p += libc.math.pow(pol_norm[key]['val'], 2)
-            h += libc.math.pow(hyd_norm[key]['val'], 2)
-            i += libc.math.pow(iso_norm[key]['val'], 2)
-        dist = libc.math.sqrt(p + h + i)
+            p += cmath.pow(pol_norm[key]['val'], 2)
+            h += cmath.pow(hyd_norm[key]['val'], 2)
+            i += cmath.pow(iso_norm[key]['val'], 2)
+        dist = cmath.sqrt(p + h + i)
 
     elif metric == 'all_norm':
         for a in range(len(seq1)):
             key = tuple(sorted([seq1[a], seq2[a]]))
-            p += libc.math.pow(pol_norm[key]['norm'], 2)
-            h += libc.math.pow(hyd_norm[key]['norm'], 2)
-            i += libc.math.pow(iso_norm[key]['norm'], 2)
-        dist = libc.math.sqrt(p + h + i)
+            p += cmath.pow(pol_norm[key]['norm'], 2)
+            h += cmath.pow(hyd_norm[key]['norm'], 2)
+            i += cmath.pow(iso_norm[key]['norm'], 2)
+        dist = cmath.sqrt(p + h + i)
 
     elif metric == 'blosum':
         for a in range(len(seq1)):
@@ -190,7 +190,9 @@ def population_fitness(pop: list, land: pd.DataFrame) -> list:
     return [aa_fitness(pop[n], land) for n in range(len(pop))]
 
 
-def list_min(values: list, size: int = 10) -> list:
+#def list_min(values: list, size: int = 10) -> list:
+cpdef list_min(list values, int size):
+
     """
     Get the lowest n values in a list of numbers.
 
