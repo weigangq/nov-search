@@ -1,7 +1,5 @@
 from binary_sim_population import *
 import argparse
-import logging
-import sys
 import pandas as pd
 
 # Setup: arguments, parameters, and logging
@@ -14,7 +12,7 @@ parser.add_argument('-t', '--tag', default='test',
 parser.add_argument('-land', '--landscape_file', required=True,
                     help='landscape file, output from nk_landscape.py. Required')
 
-parser.add_argument('-s', '--rng_seed', default=None,
+parser.add_argument('-s', '--rng_seed', type=int, default=None,
                     help='RNG seed to generate reproducible rng results. Default = None (i.e., unpredictable rng.')
 
 parser.add_argument('-pop', '--pop_size', type=int, default=100,
@@ -48,8 +46,6 @@ parser.add_argument('-w', '--weight', type=float, default=0.5,
                          'Closer to 1 means more bias towards novelty. Default = 0.5.')
 
 args = parser.parse_args()
-tagRun = args.tag
-logging.basicConfig(level=logging.DEBUG)
 
 df = pd.read_csv(args.landscape_file, sep="\t", dtype={'haplotype': str})
 seq_len = len(df.at[0, 'haplotype'])
@@ -57,13 +53,11 @@ seq_len = len(df.at[0, 'haplotype'])
 # Find the variant with the highest fitness.
 fitness_peak = df[df['global_peak'] == 1]
 fitness_peak.reset_index(inplace=True)
-logging.info("fitness peak\n%s", fitness_peak)
-
 df.set_index('haplotype', inplace=True)
 
 # Print simulation parameters
-logging.info(f"Simulation parameters:\nLandscape file: {args.landscape_file}\n\tPopulation size: {args.pop_size}\n"
-             f"\tSearch algorithm: {args.algorithm}")
+print(f"Simulation parameters:\n\tLandscape file: {args.landscape_file}\n\tPopulation size: {args.pop_size}\n\t"
+      f"Search algorithm: {args.algorithm}")
 
 
 # Initialize a population
@@ -73,14 +67,13 @@ p = Population(pop_size=args.pop_size,
                rng_seed=args.rng_seed
                )
 
-logging.info(f"starting haplotype on landscape: {arr_to_str(p.population[0])}")
+print(f"Starting haplotype on landscape: {arr_to_str(p.population[0])}\n")
 
 # Search by evolution
-
 print(f"Tag\tGen\ttop_elite\tfit\tN\tK\tsearch_algo")
 
 for n in range(args.generation):
-    print(f"{tagRun}\t{p.generation}\t{p.elite1[1]}\t{p.elite1[2]}\t{fitness_peak.at[0, 'N']}\t"
+    print(f"{args.tag}\t{p.generation}\t{p.elite1[1]}\t{p.elite1[2]}\t{fitness_peak.at[0, 'N']}\t"
           f"{fitness_peak.at[0, 'K']}\t{args.algorithm}")
 
     # end when reaches the global peak
@@ -100,5 +93,3 @@ for n in range(args.generation):
         p.combo_selection(weight=args.weight, nearest_neighbors=args.nearest_neighbors,
                           archive_method=args.archive_method, prob=args.prob_arch)
 
-logging.info("Done")
-sys.exit()
