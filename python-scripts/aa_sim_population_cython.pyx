@@ -1,8 +1,8 @@
-#!/usr/bin/env python
 import numpy as np
 import pandas as pd
 import blosum as bl
-from math import sqrt
+import cython
+cimport libc.math as cmath
 
 aa_matrix = bl.BLOSUM(62)
 
@@ -24,11 +24,6 @@ hydropathy = {'A': 1.8, 'C': 2.5, 'D': -3.5, 'E': -3.5, 'F': 2.8, 'G': -0.4, 'H'
 iso = {'A': 6, 'C': 5.05, 'D': 2.77, 'E': 3.22, 'F': 5.48, 'G': 5.97, 'H': 7.59, 'I': 6.02, 'K': 9.74, 'L': 5.98,
        'M': 5.74, 'N': 5.41, 'P': 6.3, 'Q': 5.65, 'R': 10.76, 'S': 5.68, 'T': 5.66, 'V': 5.96, 'W': 5.89, 'Y': 5.66
        }
-
-# weights for calculating novelty scores
-# ACTY -> VCTY (pos: 1/4 * 0.7 + 2.1/max * 0.1 + 0, etc)
-# ACTY -> GWSQ: low chem dist, but large hamming distance
-dist_wts = {'pos': 0.7, 'pol': 0.1, 'hydro': 0.1, 'iso': 0.1}
 
 # Calculate and store the distances between all possible pairs of amino acids.
 pol_dist, hydro_dist, iso_dist = {}, {}, {}
@@ -72,7 +67,8 @@ hyd_norm = normalize_dict(hydro_dist, 0, 1)
 iso_norm = normalize_dict(iso_dist, 0, 1)
 
 
-def get_distance(seq1: str, seq2: str, metric: str = 'all') -> float:
+#def get_distance(seq1: str, seq2: str, metric: str = 'all') -> float:
+cpdef get_distance(seq1, seq2, metric):
     """
     Calculate the euclidean distance between two amino acid sequences with the same length. Distance is based on
     polarity, hydropathy, isoelectric index, a combination of the 3 previous values, the normalized distances of the
@@ -87,9 +83,12 @@ def get_distance(seq1: str, seq2: str, metric: str = 'all') -> float:
     Returns:
         float
     """
+    cdef float dist = 0
+    cdef float p = 0
+    cdef float h = 0
+    cdef float i = 0
 
     if metric in ['pol', 'hydro', 'iso', 'pol_norm', 'hydro_norm', 'iso_norm']:
-        dist = 0
         for a in range(len(seq1)):
             key = tuple(sorted([seq1[a], seq2[a]]))
             if metric == 'pol':
@@ -106,25 +105,22 @@ def get_distance(seq1: str, seq2: str, metric: str = 'all') -> float:
                 dist += iso_norm[key]['norm']
 
     elif metric == 'all':
-        distances = [0, 0, 0]
         for a in range(len(seq1)):
             key = tuple(sorted([seq1[a], seq2[a]]))
-            distances[0] += pol_norm[key]['val'] ** 2
-            distances[1] += hyd_norm[key]['val'] ** 2
-            distances[2] += iso_norm[key]['val'] ** 2
-        dist = sqrt(distances[0] + distances[1] + distances[2])
+            p += cmath.pow(pol_norm[key]['val'], 2)
+            h += cmath.pow(hyd_norm[key]['val'], 2)
+            i += cmath.pow(iso_norm[key]['val'], 2)
+        dist = cmath.sqrt(p + h + i)
 
     elif metric == 'all_norm':
-        distances = [0, 0, 0]
         for a in range(len(seq1)):
             key = tuple(sorted([seq1[a], seq2[a]]))
-            distances[0] += pol_norm[key]['norm'] ** 2
-            distances[1] += hyd_norm[key]['norm'] ** 2
-            distances[2] += iso_norm[key]['norm'] ** 2
-        dist = sqrt(distances[0] + distances[1] + distances[2])
+            p += cmath.pow(pol_norm[key]['norm'], 2)
+            h += cmath.pow(hyd_norm[key]['norm'], 2)
+            i += cmath.pow(iso_norm[key]['norm'], 2)
+        dist = cmath.sqrt(p + h + i)
 
     elif metric == 'blosum':
-        dist = 0
         for a in range(len(seq1)):
             dist += aa_matrix[seq1[a] + seq2[a]]
 
@@ -192,6 +188,32 @@ def population_fitness(pop: list, land: pd.DataFrame) -> list:
         list
     """
     return [aa_fitness(pop[n], land) for n in range(len(pop))]
+
+
+#def list_min(values: list, size: int = 10) -> list:
+cpdef list_min(list values, int size):
+
+    """
+    Get the lowest n values in a list of numbers.
+
+    Args:
+        values: list of numbers
+        size: int
+            Number of the lowest values to return.
+
+    Returns: list
+    """
+    cdef float highest
+    cdef list bottom
+    
+    bottom = values[:size]
+    highest = max(bottom)
+    for n in range(size, len(values)):
+        if values[n] < highest:
+            bottom.remove(highest)
+            bottom.append(values[n])
+            highest = max(bottom)
+    return bottom
 
 
 def get_elites(pop: list, population_metrics: list, land: pd.DataFrame) -> list:
@@ -408,16 +430,19 @@ class Population:
         Returns:
             list
         """
-        pop_novelty = []
+        cdef list pop_novelty = []
 
         # Parameters for novelty search method 2
-        threshold = 10
-        add_max = 15
-        add_min = 5
-        fraction = 0.25
+        cdef float threshold = 10
+        cdef int add_max = 15
+        cdef int add_min = 5
+        cdef float fraction = 0.25
 
-        num_eval = 0
-        counter = 0
+        cdef int num_eval = 0
+        cdef int counter = 0
+
+        cdef float sparsity
+        cdef list compare_pop, distances_to_compare_pop
 
         for index in range(self.pop_size):
             # Find each sequence's k-nearest neighbors in the population and archive combined.
@@ -427,11 +452,10 @@ class Population:
             for n in range(len(compare_pop)):
                 compare_seq = list_to_str(compare_pop[n])
                 distances_to_compare_pop.append(get_distance(seq, compare_seq, metric=behave))
-            distances_to_compare_pop.sort()  # small -> large distances
 
             # Calculate the sequence's average distance to the k-nearest neighbors (i.e., the sparsity).
             sparsity = 0
-            for dist in distances_to_compare_pop[:nearest_neighbors+1]:
+            for dist in list_min(distances_to_compare_pop, nearest_neighbors+1):
                 # Add 1 to nearest neighbors because distances_to_compare_pop contains the amino acid's distance to
                 # itself, which is 0.
                 sparsity += dist
@@ -499,6 +523,8 @@ class Population:
                                           behave=behave)
 
         # Normalize metrics, then calculate the score.
+        cdef float max_fitness, min_fitness, max_novelty, min_novelty, norm_fitness, norm_novelty, score
+        
         max_fitness, min_fitness = max(objective), min(objective)
         max_novelty, min_novelty = max(novelty), min(novelty)
         for n in range(self.pop_size):

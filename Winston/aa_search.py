@@ -1,15 +1,17 @@
-import pyximport; pyximport.install(language_level=3)
-from aa_sim_population_cython import *
-#from aa_sim_population import *
 import argparse
 import numpy as np
 import pandas as pd
+
 parser = argparse.ArgumentParser(
     description='Simulated adaptive walks on a fitness landscape of peptides. Haplotypes should be combinatorially '
                 'complete, although not necessarily for all 20 AAs. For example, 1st site could have 2 possible AAs, '
                 '2nd site could have 5 possible AAs, then the landscape file should contain ALL 2 x 5 = 10 haplotypes. '
                 'Error otherwise. Authors: Winston Koh (Qiu Lab)'
 )
+
+parser.add_argument('-c', '--cython', action='store_true',
+                    help='Use the Cython version to run novelty search faster. Requires a C compiler to be installed '
+                         'separately.')
 
 parser.add_argument('-t', '--tag', default='test',
                     help='Prefix for output files. Default: "test"')
@@ -27,8 +29,8 @@ parser.add_argument('-gen', '--generation', type=int, default=100,
                     help='Number of generations to evolve. Default = 100.')
 
 parser.add_argument('-mut', '--mutation_rate', type=float, default=1,
-                    help='Number of mutations per generation per haplotype, randomly selected by poisson distribution. '
-                         'Default = 1.')
+                    help='Average number of mutations per generation per haplotype, randomly selected by poisson '
+                         'distribution. Default = 1.')
 
 parser.add_argument('-alg', '--algorithm', choices=['1', '2', '3'], default='1',
                     help='Evolutionary search algorithms. 1. Objective search: Selects the most fit individuals. '
@@ -36,8 +38,11 @@ parser.add_argument('-alg', '--algorithm', choices=['1', '2', '3'], default='1',
                          '3. Combo search: Combines fitness and novelty.')
 
 parser.add_argument('-beh', '--behavior', default='all',
-                    help='Behavior measure of haplotypes: raw: raw distance (Euclidean pol, hydro, and iso) to peak '
-                         'norm: normalized distance to peak (pol, hydro, and iso diffs equally weighted to 0-1)')
+                    choices=['pol', 'hydro', 'iso', 'all', 'blosum', 'pol_norm','hydro_norm', 'iso_norm', 'all_norm'], 
+                    help='Behavior measure of haplotypes to use for novelty search. '
+                         'Options: Polarity, Hydropathy index, Isoelectric index, Euclidean distance between all 3,'
+                         'Normalized (0 to 1) versions of polarity, hydropathy, isoelectric, and all, '
+                         'and the blosum matrix.')
 
 parser.add_argument('-n', '--nearest_neighbors', type=int, default=10,
                     help='Number of nearest neighbors to use in novelty search. Default = 10.')
@@ -55,7 +60,13 @@ parser.add_argument('-w', '--weight', type=float, default=0.5,
                          'Closer to 1 means more bias towards novelty. Default = 0.5.')
 
 args = parser.parse_args()
-tagRun = args.tag
+
+if args.cython:
+    import pyximport; pyximport.install(language_level=3)
+    from aa_sim_population_cython import *
+
+else:
+    from aa_sim_population import *
 
 df = pd.read_csv(args.landscape_file, sep="\t")
 pep_len = len(df.at[0, 'Variants'])
@@ -82,7 +93,7 @@ p = Population(pop_size=args.pop_size,
 
 print('tag\tgen\telite_hap\telite_fitness\talgorithm')
 for n in range(args.generation):
-    print(f"{tagRun}\t{p.generation}\t{p.elite1[1]}\t{round(p.elite1[2],6)}\t{args.algorithm}")
+    print(f"{args.tag}\t{p.generation}\t{p.elite1[1]}\t{round(p.elite1[2],6)}\t{args.algorithm}")
 
     # End the simulation when a sequence reaches the peak.
     if p.elite1[1] == fitness_peak_hap:
